@@ -83,6 +83,12 @@ extern NSPanel *pageNumberWindow;
 {
     TSDocument *theDocument = self.myDocument;
     
+    if (theDocument.annotationsExist)
+        {
+        theDocument.annotationsExist = NO;
+        [theDocument callSaveAnnotations];
+        }
+    
 //	[self.myPDFKitView setDocument: nil];
 //	[self.myPDFKitView2 setDocument: nil];
 	self.willClose = YES;

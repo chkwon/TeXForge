@@ -190,6 +190,21 @@
     }
  */
     
+    NSArray *myDocuments = [[TSDocumentController sharedDocumentController]  documents];
+    TSDocument  *aDocument;
+    NSInteger i = 0;
+    while (i < [myDocuments count]) {
+        aDocument = [myDocuments objectAtIndex:i];
+        if (aDocument.annotationsExist)
+            {
+            aDocument.annotationsExist = NO;
+            [aDocument callSaveAnnotations];
+            }
+
+        i++;
+        }
+
+    
     NSString *folderPath, *filename;
 	NSFileManager *fileManager = [NSFileManager defaultManager];
 	folderPath = [[DraggedImagePath stringByStandardizingPath]

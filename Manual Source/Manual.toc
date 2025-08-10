@@ -191,89 +191,85 @@
 \contentsline {subsection}{\numberline {31.6.3}Building the \texttt {cocoAspell} Dictionaries}{183}{subsection.31.6.3}%
 \contentsline {chapter}{\numberline {32}Annotations}{184}{chapter.32}%
 \contentsline {section}{\numberline {32.1}Annotations in General}{184}{section.32.1}%
-\contentsline {subsection}{\numberline {32.1.1}Who Defined Annotations?}{184}{subsection.32.1.1}%
-\contentsline {subsection}{\numberline {32.1.2}Using LaTeX to Annotate}{186}{subsection.32.1.2}%
-\contentsline {subsection}{\numberline {32.1.3}*Fermat as Annotator}{187}{subsection.32.1.3}%
-\contentsline {subsection}{\numberline {32.1.4}*Fermat and the Method of Descent}{189}{subsection.32.1.4}%
-\contentsline {subsubsection}{*Areas of Pythagorian Triangles}{189}{section*.10}%
-\contentsline {subsubsection}{*Euclid's Formula}{190}{section*.11}%
-\contentsline {subsubsection}{*Progressions of Squares}{190}{section*.12}%
-\contentsline {subsubsection}{*Fermat's Argument by Descent}{191}{section*.13}%
-\contentsline {subsubsection}{*Proving the Two Squares Theorem by Descent}{192}{section*.14}%
-\contentsline {subsubsection}{*Finite Fields}{192}{section*.15}%
-\contentsline {subsubsection}{*The First Half of Euler's Descent}{194}{section*.16}%
-\contentsline {subsubsection}{*Gaussian Integers and Dedekind's Proof}{194}{section*.17}%
-\contentsline {subsection}{\numberline {32.1.5}Why Add Annotations to TeXShop?}{196}{subsection.32.1.5}%
-\contentsline {section}{\numberline {32.2}Annotating in TeXShop}{197}{section.32.2}%
-\contentsline {subsection}{\numberline {32.2.1}Getting Started}{197}{subsection.32.2.1}%
-\contentsline {subsection}{\numberline {32.2.2}Adding Annotations to a Page}{198}{subsection.32.2.2}%
-\contentsline {subsection}{\numberline {32.2.3}Editing Text in Annotations}{199}{subsection.32.2.3}%
-\contentsline {subsection}{\numberline {32.2.4}Changing Annotation Colors}{199}{subsection.32.2.4}%
-\contentsline {subsection}{\numberline {32.2.5}Changing Annotation Fonts}{200}{subsection.32.2.5}%
-\contentsline {subsection}{\numberline {32.2.6}Saving Annotated PDF Files}{200}{subsection.32.2.6}%
-\contentsline {subsection}{\numberline {32.2.7}Removing Image Streams}{201}{subsection.32.2.7}%
-\contentsline {subsection}{\numberline {32.2.8}Interacting with Adobe Acrobat}{202}{subsection.32.2.8}%
-\contentsline {subsection}{\numberline {32.2.9}Interacting with Preview}{203}{subsection.32.2.9}%
-\contentsline {section}{\numberline {32.3}Miscellaneous Items}{204}{section.32.3}%
-\contentsline {subsection}{\numberline {32.3.1}History of the Code}{204}{subsection.32.3.1}%
-\contentsline {subsection}{\numberline {32.3.2}Arrows}{204}{subsection.32.3.2}%
-\contentsline {subsection}{\numberline {32.3.3}Annotations and Automatic Saving}{205}{subsection.32.3.3}%
-\contentsline {subsection}{\numberline {32.3.4}Don't Do This}{206}{subsection.32.3.4}%
-\contentsline {chapter}{\numberline {33}Writing Tools}{207}{chapter.33}%
-\contentsline {chapter}{\numberline {34}Japan}{209}{chapter.34}%
-\contentsline {chapter}{\numberline {35}Updating TeXShop}{211}{chapter.35}%
-\contentsline {chapter}{\numberline {36}Opening Encrypted PDF Files}{213}{chapter.36}%
-\contentsline {chapter}{\numberline {37}Left Over Items}{215}{chapter.37}%
-\contentsline {section}{\numberline {37.1}Menus}{215}{section.37.1}%
-\contentsline {section}{\numberline {37.2}Items in the Preference Pane}{217}{section.37.2}%
-\contentsline {section}{\numberline {37.3}Modifying the Latex Panel}{218}{section.37.3}%
-\contentsline {section}{\numberline {37.4}Adding to the List of Files That Can Be Typeset}{219}{section.37.4}%
-\contentsline {chapter}{\numberline {38}Magic Comment Lines}{220}{chapter.38}%
-\contentsline {section}{\numberline {38.1}Commonly Used Magic Lines}{220}{section.38.1}%
-\contentsline {section}{\numberline {38.2}Magic Lines to Control Preview in Double Page Modes}{221}{section.38.2}%
-\contentsline {section}{\numberline {38.3}Magic Lines for ConTeXt}{222}{section.38.3}%
-\contentsline {section}{\numberline {38.4}A Magic Line for Beamer}{222}{section.38.4}%
-\contentsline {section}{\numberline {38.5}Obsolete Magic Lines}{223}{section.38.5}%
-\contentsline {section}{\numberline {38.6}Pseudo-Magic Lines for Engine Files}{223}{section.38.6}%
-\contentsline {chapter}{\numberline {39}Hidden Preferences}{225}{chapter.39}%
-\contentsline {section}{\numberline {39.1}Introduction}{225}{section.39.1}%
-\contentsline {section}{\numberline {39.2}Long Standing Hidden Preferences }{226}{section.39.2}%
-\contentsline {subsubsection}{<Preferences for Line Spacing in the Source Window>}{226}{section*.18}%
-\contentsline {subsubsection}{<Preferences for Trashing AUX Files>}{226}{section*.19}%
-\contentsline {subsubsection}{<Preferences for Command Completion>}{226}{section*.20}%
-\contentsline {subsubsection}{<Preferences for the Preview Window>}{227}{section*.21}%
-\contentsline {subsubsection}{<Preferences for the Preview Window Drawer>}{228}{section*.22}%
-\contentsline {subsubsection}{<Preferences for Automatic Saving>}{228}{section*.23}%
-\contentsline {subsubsection}{<Preferences for the Matrix Panel>}{228}{section*.24}%
-\contentsline {subsubsection}{<Preferences for Server Problems>}{228}{section*.25}%
-\contentsline {subsubsection}{<Preferences for the Tags Menu>}{229}{section*.26}%
-\contentsline {section}{\numberline {39.3}Newer Hidden Preferences}{229}{section.39.3}%
-\contentsline {subsubsection}{<Preferences for the Source Window>}{229}{section*.27}%
-\contentsline {subsubsection}{<Preferences for Syntax Coloring>}{229}{section*.28}%
-\contentsline {subsubsection}{<Preferences to Control Spell Checking>}{230}{section*.29}%
-\contentsline {subsubsection}{<Preferences to Control Apple Find Bar>}{231}{section*.30}%
-\contentsline {subsubsection}{<Preferences to Control Tags and Labels>}{231}{section*.31}%
-\contentsline {subsubsection}{<Preferences for Coloring Indices>}{231}{section*.32}%
-\contentsline {subsubsection}{<Preference for Tabs>}{231}{section*.33}%
-\contentsline {subsubsection}{<Preferences for Save Dialog>}{231}{section*.34}%
-\contentsline {subsubsection}{<Preferences for the Preview Window>}{231}{section*.35}%
-\contentsline {subsubsection}{<Preferences for External Editors>}{232}{section*.36}%
-\contentsline {subsubsection}{<Preferences for Accessibility>}{232}{section*.37}%
-\contentsline {subsubsection}{<Preferences for Apple Intelligence>}{232}{section*.38}%
-\contentsline {section}{\numberline {39.4}Obsolete Hidden Preferences}{233}{section.39.4}%
-\contentsline {subsubsection}{<Obsolete Preferences Introduced To Fix a Bug>}{233}{section*.39}%
-\contentsline {subsubsection}{<Obsolete Preferences Related to the Flash Bug>}{233}{section*.40}%
-\contentsline {subsubsection}{<Various Obsolete Bugfixes>}{234}{section*.41}%
-\contentsline {subsubsection}{<Obsolete Bug for the Entire Program>}{235}{section*.42}%
-\contentsline {subsubsection}{<Other Obsolete Preferences>}{235}{section*.43}%
-\contentsline {subsubsection}{<Other Obsolete Items>}{236}{section*.44}%
-\contentsline {subsubsection}{<Obsolete Color Preferences>}{237}{section*.45}%
-\contentsline {chapter}{\numberline {40}Unusual Bugs}{240}{chapter.40}%
-\contentsline {section}{\numberline {40.1}Tags}{240}{section.40.1}%
-\contentsline {section}{\numberline {40.2}Zombie Untitled Windows}{240}{section.40.2}%
-\contentsline {chapter}{\numberline {41}Contributors}{242}{chapter.41}%
-\contentsline {subsubsection}{Overall Architecture}{242}{section*.46}%
-\contentsline {subsubsection}{Specific Features}{242}{section*.47}%
-\contentsline {subsubsection}{Independent Projects Used by TeXShop}{242}{section*.48}%
-\contentsline {subsubsection}{Localization}{243}{section*.49}%
-\contentsline {subsubsection}{Icon}{243}{section*.50}%
+\contentsline {section}{\numberline {32.2}Who Defined Annotations?}{184}{section.32.2}%
+\contentsline {section}{\numberline {32.3}Using LaTeX to Annotate}{186}{section.32.3}%
+\contentsline {section}{\numberline {32.4}Why Add Annotations to TeXShop?}{187}{section.32.4}%
+\contentsline {section}{\numberline {32.5}Annotating in TeXShop}{187}{section.32.5}%
+\contentsline {section}{\numberline {32.6}Adding Annotations to a Page}{188}{section.32.6}%
+\contentsline {section}{\numberline {32.7}Editing Text in Annotations}{189}{section.32.7}%
+\contentsline {section}{\numberline {32.8}Changing Annotation Colors}{190}{section.32.8}%
+\contentsline {section}{\numberline {32.9}Changing Annotation Fonts}{190}{section.32.9}%
+\contentsline {chapter}{\numberline {33}More on Annotations}{191}{chapter.33}%
+\contentsline {section}{\numberline {33.1}Saving Annotated PDF Files}{191}{section.33.1}%
+\contentsline {section}{\numberline {33.2}Removing Image Streams}{192}{section.33.2}%
+\contentsline {section}{\numberline {33.3}Guard Rails}{193}{section.33.3}%
+\contentsline {section}{\numberline {33.4}Interacting with Adobe Acrobat}{193}{section.33.4}%
+\contentsline {section}{\numberline {33.5}Interacting with Preview}{194}{section.33.5}%
+\contentsline {section}{\numberline {33.6}History of the Annotation Code}{195}{section.33.6}%
+\contentsline {section}{\numberline {33.7}Arrows}{195}{section.33.7}%
+\contentsline {section}{\numberline {33.8}Don't Do This}{196}{section.33.8}%
+\contentsline {chapter}{\numberline {34}Fermat as Annotator}{197}{chapter.34}%
+\contentsline {section}{\numberline {34.1}A Difficult Theorem of Fermat}{198}{section.34.1}%
+\contentsline {section}{\numberline {34.2}Euclid's Formula}{199}{section.34.2}%
+\contentsline {section}{\numberline {34.3}Progressions of Squares}{200}{section.34.3}%
+\contentsline {section}{\numberline {34.4}The Method of Descent}{201}{section.34.4}%
+\contentsline {section}{\numberline {34.5}Fermat's Argument by Descent}{202}{section.34.5}%
+\contentsline {section}{\numberline {34.6}Generalizing Fermat's Area Theorem}{203}{section.34.6}%
+\contentsline {chapter}{\numberline {35}Writing Tools}{204}{chapter.35}%
+\contentsline {chapter}{\numberline {36}Japan}{206}{chapter.36}%
+\contentsline {chapter}{\numberline {37}Updating TeXShop}{208}{chapter.37}%
+\contentsline {chapter}{\numberline {38}Opening Encrypted PDF Files}{210}{chapter.38}%
+\contentsline {chapter}{\numberline {39}Left Over Items}{212}{chapter.39}%
+\contentsline {section}{\numberline {39.1}Menus}{212}{section.39.1}%
+\contentsline {section}{\numberline {39.2}Items in the Preference Pane}{214}{section.39.2}%
+\contentsline {section}{\numberline {39.3}Modifying the Latex Panel}{215}{section.39.3}%
+\contentsline {section}{\numberline {39.4}Adding to the List of Files That Can Be Typeset}{216}{section.39.4}%
+\contentsline {chapter}{\numberline {40}Magic Comment Lines}{217}{chapter.40}%
+\contentsline {section}{\numberline {40.1}Commonly Used Magic Lines}{217}{section.40.1}%
+\contentsline {section}{\numberline {40.2}Magic Lines to Control Preview in Double Page Modes}{218}{section.40.2}%
+\contentsline {section}{\numberline {40.3}Magic Lines for ConTeXt}{219}{section.40.3}%
+\contentsline {section}{\numberline {40.4}A Magic Line for Beamer}{219}{section.40.4}%
+\contentsline {section}{\numberline {40.5}Obsolete Magic Lines}{220}{section.40.5}%
+\contentsline {section}{\numberline {40.6}Pseudo-Magic Lines for Engine Files}{220}{section.40.6}%
+\contentsline {chapter}{\numberline {41}Hidden Preferences}{222}{chapter.41}%
+\contentsline {section}{\numberline {41.1}Introduction}{222}{section.41.1}%
+\contentsline {section}{\numberline {41.2}Long Standing Hidden Preferences }{223}{section.41.2}%
+\contentsline {subsubsection}{<Preferences for Line Spacing in the Source Window>}{223}{section*.10}%
+\contentsline {subsubsection}{<Preferences for Trashing AUX Files>}{223}{section*.11}%
+\contentsline {subsubsection}{<Preferences for Command Completion>}{223}{section*.12}%
+\contentsline {subsubsection}{<Preferences for the Preview Window>}{224}{section*.13}%
+\contentsline {subsubsection}{<Preferences for the Preview Window Drawer>}{225}{section*.14}%
+\contentsline {subsubsection}{<Preferences for Automatic Saving>}{225}{section*.15}%
+\contentsline {subsubsection}{<Preferences for the Matrix Panel>}{225}{section*.16}%
+\contentsline {subsubsection}{<Preferences for Server Problems>}{225}{section*.17}%
+\contentsline {subsubsection}{<Preferences for the Tags Menu>}{226}{section*.18}%
+\contentsline {section}{\numberline {41.3}Newer Hidden Preferences}{226}{section.41.3}%
+\contentsline {subsubsection}{<Preferences for the Source Window>}{226}{section*.19}%
+\contentsline {subsubsection}{<Preferences for Syntax Coloring>}{226}{section*.20}%
+\contentsline {subsubsection}{<Preferences to Control Spell Checking>}{227}{section*.21}%
+\contentsline {subsubsection}{<Preferences to Control Apple Find Bar>}{228}{section*.22}%
+\contentsline {subsubsection}{<Preferences to Control Tags and Labels>}{228}{section*.23}%
+\contentsline {subsubsection}{<Preferences for Coloring Indices>}{228}{section*.24}%
+\contentsline {subsubsection}{<Preference for Tabs>}{228}{section*.25}%
+\contentsline {subsubsection}{<Preferences for Save Dialog>}{228}{section*.26}%
+\contentsline {subsubsection}{<Preferences for the Preview Window>}{228}{section*.27}%
+\contentsline {subsubsection}{<Preferences for External Editors>}{229}{section*.28}%
+\contentsline {subsubsection}{<Preferences for Accessibility>}{229}{section*.29}%
+\contentsline {subsubsection}{<Preferences for Apple Intelligence>}{229}{section*.30}%
+\contentsline {section}{\numberline {41.4}Obsolete Hidden Preferences}{230}{section.41.4}%
+\contentsline {subsubsection}{<Obsolete Preferences Introduced To Fix a Bug>}{230}{section*.31}%
+\contentsline {subsubsection}{<Obsolete Preferences Related to the Flash Bug>}{230}{section*.32}%
+\contentsline {subsubsection}{<Various Obsolete Bugfixes>}{231}{section*.33}%
+\contentsline {subsubsection}{<Obsolete Bug for the Entire Program>}{232}{section*.34}%
+\contentsline {subsubsection}{<Other Obsolete Preferences>}{232}{section*.35}%
+\contentsline {subsubsection}{<Other Obsolete Items>}{233}{section*.36}%
+\contentsline {subsubsection}{<Obsolete Color Preferences>}{234}{section*.37}%
+\contentsline {chapter}{\numberline {42}Unusual Bugs}{237}{chapter.42}%
+\contentsline {section}{\numberline {42.1}Tags}{237}{section.42.1}%
+\contentsline {section}{\numberline {42.2}Zombie Untitled Windows}{237}{section.42.2}%
+\contentsline {chapter}{\numberline {43}Contributors}{239}{chapter.43}%
+\contentsline {subsubsection}{Overall Architecture}{239}{section*.38}%
+\contentsline {subsubsection}{Specific Features}{239}{section*.39}%
+\contentsline {subsubsection}{Independent Projects Used by TeXShop}{239}{section*.40}%
+\contentsline {subsubsection}{Localization}{240}{section*.41}%
+\contentsline {subsubsection}{Icon}{240}{section*.42}%

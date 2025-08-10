@@ -1979,7 +1979,13 @@ if ((whichEngineLocal != 3) && (whichEngineLocal != 4) && (! fromMenu)) { //don'
 - (void) doTypeset: sender;
 
  {
-  
+   if (self.annotationsExist)
+   {
+       self.annotationsExist = NO;
+       [self callSaveAnnotations];
+   }
+       
+     
     NSInteger prefValue = [SUD integerForKey: BringFrontOnTypesetKey];
     if (prefValue == 2)
         WindowAfterTypeset = [NSApplication.sharedApplication keyWindow];

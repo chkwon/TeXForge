@@ -254,6 +254,10 @@
     if ((BuggyHighSierra) && ([SUD boolForKey:continuousHighSierraFixKey]))
      self.updatePageNumberTimer = [NSTimer scheduledTimerWithTimeInterval: 1
                        target:self selector:@selector(pageChangedNew:) userInfo:nil repeats:YES];
+    
+    fromTypesetOrQuit = NO; // NO if SaveAnnotationsCalledDirectly
+    firstTimeSave = YES;
+
 }
 
 - (void) setupPageStyle

@@ -44,7 +44,9 @@ such instructions.
 Select the item 
 ``Open $\sim$/Library/TeXShop'' in TeXShop's first menu.  The Finder will display a  list of folders in this location, including a folder named {\bf Engines}. 
 Drag copies of  TeX4ht.engine and TeX4ht-Only.engine into this folder.
-If you are warned about overwriting existing engines, do so. Earlier engines were revised for the latest TeXShop.
+If you are warned about overwriting existing engines, do so. Earlier engines were revised for the latest TeXShop. 
+
+After adding the engines, quit TeXShop and then restart it. This is required so TeXShop will recognize the new engines.
 
 Engine files need to have correct permissions. The two files should automatically have these permissions.
 But glitches sometimes occur. If you are later warned about bad permissions, find Terminal in /Applications/Utilities, run it,  and type
@@ -116,8 +118,8 @@ interactive content has been added to the html version of the document.
 The title of the pdf section is {\bf First Steps} and this version begins with a link to a beamer sets of slides from a talk I gave at Cal Poly Humboldt. The title of the html section is {\bf Interactive Experiments} and 
 the first paragraph still links to those beamer slides. 
 
-However, there is a subtle difference in those links. Go to the pdf version and click the link. Apple's pdf software displays links to offsite locations by opening the link in Safari. But TeXShop's html window
-is already active, so it opens the slides without starting a secondary program. Use the back arrow key to return to the original window contents.
+However, there is a subtle difference in those links. Go to the pdf version and click the link. Apple's pdf software displays links to offsite locations by opening the link in Safari. Now click the link in the html version. As TeXShop's html window
+is already active,  it opens the slides without starting a secondary program. Use the back arrow key to return to the original window contents.
 
 The source command which switches between output to pdf and output to html is
 \begin{verbatim}

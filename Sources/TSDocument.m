@@ -363,6 +363,7 @@ withDarkColors = NO;
     else
         self.syncWithOvals = 0;
     self.activateVoiceOverFix = [SUD boolForKey: FixVoiceOverKey];
+    self.annotationsExist = NO;
     
  	tagLine = NO;
 	self.texRep = nil;
@@ -2967,6 +2968,12 @@ else {
 
 - (void)close
 {
+    if (self.annotationsExist)
+        {
+        self.annotationsExist = NO;
+        [self callSaveAnnotations];
+        }
+    
     [self.myPDFKitView breakConnections];
     [self.myPDFKitView2 breakConnections];
 	
@@ -7987,22 +7994,14 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
 - (IBAction) saveAnnotations: sender;
 {
-    /*
-    NSString    *filePath;
-    NSString    *rawPath;
-    NSString    *writePath;
-    
-    filePath = [[self fileURL] path];
-    if (filePath)
-        {
-            rawPath = [filePath stringByDeletingPathExtension];
-            writePath = [[rawPath stringByAppendingString:@"-Annotated"] stringByAppendingPathExtension:@"pdf"];
-            [self.myPDFKitView.document writeToFile: writePath];
-            // NSLog(writePath);
-        }
-     */
     
     [self.myPDFKitView saveAnnotations:sender];
+}
+
+- (IBAction) callSaveAnnotations;
+{
+    
+    [self.myPDFKitView callSaveAnnotations];
 }
 
 - (IBAction) setEditMode: sender;

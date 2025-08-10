@@ -16,6 +16,34 @@
 
 <!-- main content -->
 <div id="main">
+<P><h3>TeXShop Changes 5.54</h3></P>
+All changes in this version are related to annotations. Special thanks to Uwe Schmock for suggestions and debugging. The following features were added:
+<ul>
+<p><li> The annotation panel has an additional check box at top right labeled "Save All". 
+When it is checked, the "Save Annotations" button saves all
+pages of the pdf file. When it is not checked, "Save Annotations" only saves pages containing annotations.
+The item is checked when the panel first appears.
+
+<p><li> The first time a user chooses the button "Save Annotations", the annotation panel suggests a name and location for the new file. If the main document is titled "Fourier.tex" and its preview output is titled
+"Fourier.pdf", the suggested name for the annotated file is "Fourier-Annotated.pdf"
+and the location of this file is the folder containing "Fourier.tex".
+
+<p> The user can change the name and location of the annotated file before saving. 
+In that case, the panel will remember the new name and location the next time it is opened. 
+Thus if the first set of annotations is named "Fourier-Annotated.pdf", the next set will initially have this name but can be renamed "Fourier-Annotated1.pdf", and the next set after that will have name
+"Fourier-Annotated1.pdf" but can be renamed "Fourier-Annotated2.pdf".
+
+<p><li> Although TeXShop automatically saves source files, it is not involved in the process of saving pdf output files. In fact, these output files are created by TeX and LaTeX during typesetting
+and have already been written to disk by the typesetting software when TeXShop regains control of the computer. Since TeXShop is not involved in saving output pdf files, it does not automatically save any annotations  users  add to these files.
+
+
+<p><li> Therefore if pages are annotated and  the user has not yet saved these annotations,  several actions may cause the user to lose their annotations. These include typesetting the document again, closing the Preview Window, quitting the entire document being annotated, or quitting TeXShop altogether. 
+
+<p> Therefore a series of guard rails have been added to the program to prevent these accidental losses of data. Recall that the annotation panel switches between two modes, "Edit Mode" and "Run Mode". If the user selects "Edit Mode" in the Panel, TeXShop decides that the user is  adding new annotations or modifying annotations that already exist. So the next time the user typesets or does another of the dangerous actions listed earlier, the "Save Annotations" panel appears, allowing the user to save annotations. 
+As soon as annotations are saved or the user chooses "Cancel", typesetting or the other action occurs. Since this is an attempt to save data, the entire annotated file is saved even if some pages are not annotated.
+
+</ul>
+
 <P><h3>TeXShop Changes 5.53</h3></P>
 TeXShop contains two preview windows, a pdf window for pdf files and an
 html window for html files. The html  window is live on the internet.
@@ -52,7 +80,7 @@ output, and consult the Read-Me file for further details.
 knowledge of typesetting. All typesetting engines for TeX4ht now use these configuration
 files. The Fourier folder has a sample configuration file
 that fixes some problems in the earlier version, and can be used unchanged for your
-own projects.  Details are give in the Read-Me associated
+own projects.  Details are given in the Read-Me associated
 with Demo.
 
 

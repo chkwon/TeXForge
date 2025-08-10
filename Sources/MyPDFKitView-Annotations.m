@@ -34,12 +34,15 @@
  NSRect         selectedBounds;
  PDFPage        selectedPage;
  BOOL           withBorder;
+ BOOL           fromTypesetOrQuit = NO; // NO if SaveAnnotationsCalledDirectly
+ BOOL           annotationsFound;
+
   
  also BOOL useAnnotationMenu is a property of MyPDFKitView
  */
 
 // switch when disable Edit Mode
-#undef EDITARROWMOD 0
+#undef EDITARROWMOD //0
 
 // switch when activate
 #define ARROWMOD 0  // later #undef ARROWMOD
@@ -48,6 +51,12 @@
 #import "globals.h"
 
 @implementation MyPDFKitView (Annotations)
+
+
+BOOL    fromTypesetOrQuit = NO; // NO if SaveAnnotationsCalledDirectly
+BOOL    annotationsFound;
+
+
 
     
     - (void)strikeoutAnnotation: (id)sender
@@ -875,6 +884,11 @@
 
 - (void) setEditModeInternal: (BOOL)edit andClosePanels: (BOOL)doClose
 {
+    if (edit) {
+        self.myDocument.annotationsExist = YES;
+        //NSLog(@"got here");
+        }
+        
     PDFPage *aPage, *firstPage;
     
     firstPage = [[self document] pageAtIndex: 0];
@@ -959,46 +973,153 @@ static NSRect RectPlusScale (NSRect aRect, float scale)
     return NSMakeRect(origin.x, origin.y, maxX - origin.x, maxY - origin.y);
 }
 
+
+- (void)callSaveAnnotations
+{
+    
+    self.myDocument.annotationsExist = NO;
+    fromTypesetOrQuit = YES;
+    [self saveAnnotations: self];
+}
+
+
 - (void) saveAnnotations: (id)sender
 {
     NSSavePanel     *panel;
     NSString    *filePath;
     NSString    *rawPath;
-    NSString    *writePath, *writeDirectory;
+    NSString    *writePath, *writeDirectory, *writeName;
     PDFDocument *theDocument;
+    NSButton    *fullSaveButton;
+    NSInteger FullSaveInteger;
+    BOOL    doFullSave;
+    NSString *theExtension;
+    NSURL   *myURL;
+    BOOL    mustSaveAnnotations;
+    BOOL    mustDoFullSave;
     
-    NSUInteger modifiers = ([NSEvent modifierFlags] & NSEventModifierFlagDeviceIndependentFlagsMask);
+    if (fromTypesetOrQuit)
+        mustDoFullSave = YES;
+    else
+        mustDoFullSave = NO;
+    
+    mustSaveAnnotations = YES;
+    /*  later decided to save all if guard rails
+    if (fromTypesetOrQuit)
+        mustSaveAnnotations = NO;
+    else
+        mustSaveAnnotations = YES;
+    */
+    fromTypesetOrQuit = NO;
+    
+     
+    annotationsFound = NO;
+    
+    self.myDocument.annotationsExist = NO;
     
     [self setEditModeInternal: NO andClosePanels:NO];
     
     [self deSelectAll];
     
     filePath = [[self.myDocument fileURL] path];
+    theExtension = [filePath pathExtension];
+    
+    if (
+        ([theExtension isEqualToString:@"pdf"]) ||
+        ([theExtension isEqualToString:@"tex"]) ||
+        ([theExtension isEqualToString:@"ltx"]) ||
+        ([theExtension isEqualToString:@"lua"]) ||
+        ([theExtension isEqualToString:@"ctx"])
+        )
+        ;
+    else
+        return;
+    
+    
+    
+    // now we bring up the panel
+    
     
     if (filePath)
+    {
+        fullSaveButton = [self.myDocument SaveAllCheckBox];
+        FullSaveInteger = [fullSaveButton intValue];
+        if (FullSaveInteger == 0)
+            doFullSave = NO;
+        else
+            doFullSave = YES;
+        
+        if (mustDoFullSave)
+            doFullSave = YES;
+        
+        rawPath = [filePath stringByDeletingPathExtension];
+        writePath = [[rawPath stringByAppendingString:@"-Annotated"] stringByAppendingPathExtension:@"pdf"];
+        /*
+        if (doFullSave)
         {
-            rawPath = [filePath stringByDeletingPathExtension];
             writePath = [[rawPath stringByAppendingString:@"-Annotated"] stringByAppendingPathExtension:@"pdf"];
-            // [self.document writeToFile: writePath];
-            
-            theDocument = self.document;
-            if (modifiers == NSAlternateKeyMask)
-                {
-                   theDocument =  [self constructOutput];
-                }
-            panel = [NSSavePanel savePanel];
-            [panel setAllowedFileTypes: @[ @"pdf" ]];
-            writeDirectory = [filePath stringByDeletingLastPathComponent];
-            [panel setDirectoryURL: [NSURL URLWithString: writeDirectory]];
-            [panel setNameFieldStringValue: [writePath lastPathComponent]];
-             
-            if ([panel runModal] == NSModalResponseOK)
-                 {
-                    [theDocument writeToURL: [panel URL]];
-                 }
-            
         }
+        else
+        {
+            writePath = [[rawPath stringByAppendingString:@"-AnnotatedPages"] stringByAppendingPathExtension:@"pdf"];
+        }
+        */
+        writeName = [writePath lastPathComponent];
+          
+        panel = [NSSavePanel savePanel];
+        [panel setAllowedFileTypes: @[ @"pdf" ]];
+        writeDirectory = [filePath stringByDeletingLastPathComponent];
+        myURL = [NSURL fileURLWithPath: writeDirectory isDirectory:YES];
+        
+        if (firstTimeSave)
+        {
+            [panel setNameFieldStringValue: writeName];
+            nameValue = [panel nameFieldStringValue];
+            [panel setDirectoryURL: myURL];
+            locationURL = myURL;
+            firstTimeSave = NO;
+        }
+        else
+        {
+            [panel setNameFieldStringValue: nameValue];
+            [panel setDirectoryURL: locationURL];
+        }
+        
+        
+        theDocument = self.document;
+        
+         
+        if (! doFullSave)
+        {
+            theDocument =  [self constructOutput];
+        }
+        // this section handles the case when the user asked only for annotated pages and none exist
+        if ((! annotationsFound) && (! doFullSave ) && ( mustSaveAnnotations))
+        {
+            NSAlert *alert = [[NSAlert alloc] init];
+            [alert addButtonWithTitle:@"OK"];
+            [alert setMessageText:NSLocalizedString(@"PDF File Has No Annotations",@"PDF File Has No Annotations")];
+            [alert setAlertStyle:NSAlertStyleInformational];
+            if ([alert runModal] == NSAlertFirstButtonReturn) {
+                // OK clicked, delete the record
+                return;
+            }
+        }
+            // better tp bring up a panel saying as much
+            
+        if (( annotationsFound) || ( doFullSave ))
+        {
+            if ([panel runModal] == NSModalResponseOK)
+            {
+                [theDocument writeToURL: [panel URL]];
+                nameValue = [panel nameFieldStringValue];
+                locationURL = [panel directoryURL];
+           }
+        }
+        }
+   
 }
+
 
 - (PDFDocument *)constructOutput
 {
@@ -1058,6 +1179,7 @@ static NSRect RectPlusScale (NSRect aRect, float scale)
               //   }
               
                 [modifiedDocument insertPage:copiedPage atIndex:[modifiedDocument pageCount]];
+                annotationsFound = YES;
                
             }
         }
@@ -2356,5 +2478,11 @@ static NSRect RectPlusScale (NSRect aRect, float scale)
     }
 
     
+- (void)endTheSheetWithOK:(id)sender __attribute__((ibaction)) {
+}
+
+- (void)toggleSaveAllMode:(id)sender {
+}
+
 @end
 

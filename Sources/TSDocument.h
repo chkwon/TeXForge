@@ -463,6 +463,7 @@ enum RootCommand
 @property           BOOL                syntaxcolorEntry;
 @property           BOOL                blockCursor;
 @property           BOOL                docUseAnnotationMenu;
+@property           BOOL                annotationsExist;
 
 
 @property           BOOL                fileIsXML;
@@ -560,6 +561,7 @@ enum RootCommand
 @property (nonatomic, strong) IBOutlet TSHTMLWindow *htmlWindow;
 @property (nonatomic, strong) IBOutlet WKWebView *htmlView;
 @property (nonatomic, strong) IBOutlet NSButton *EditModeCheckBox;
+@property (nonatomic, strong) IBOutlet NSButton *SaveAllCheckBox;
 
 // Values for PreviewType:  0 = use old method
 //                          1 = no Preview
@@ -613,6 +615,7 @@ enum RootCommand
 - (void) updateStatistics: sender;
 
 - (IBAction) saveAnnotations: sender;
+- (IBAction) callSaveAnnotations;
 - (IBAction) setEditMode: sender;
 - (IBAction) removeStreams: sender;
 - (IBAction) showColorPanel: sender;

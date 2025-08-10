@@ -139,7 +139,12 @@
     NSRect         selectedBounds;
     PDFPage        *selectedPage;
     BOOL           withBorder;
-    
+    BOOL           fromTypesetOrQuit; // NO if SaveAnnotationsCalledDirectly
+    BOOL           annotationsFound;
+    BOOL           firstTimeSave;
+    NSString       *nameValue;
+    NSURL          *locationURL;
+
     
 	
 }
@@ -380,7 +385,9 @@
 - (void)setRunMode: (id)sender;
 - (void)closePanels;
 - (void) saveAnnotations: (id)sender;
+- (void)callSaveAnnotations;
 - (void) toggleEditMode: (id)sender;
+- (void) toggleSaveAllMode: (id)sender;
 
 - (BOOL)annotationDrawPage: (PDFPage *)page;
 - (BOOL)annotationMouseDown: (NSEvent *)theEvent;
