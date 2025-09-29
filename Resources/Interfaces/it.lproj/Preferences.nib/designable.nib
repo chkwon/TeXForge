@@ -167,6 +167,9 @@
                 <outlet property="explmykeyColorWell" destination="bXr-Xf-gfc" id="XOE-yE-aOG"/>
                 <outlet property="firstParagraphIndentField" destination="ayA-dt-dmW" id="Cbb-Jo-Nnf"/>
                 <outlet property="interlineSpacingField" destination="brV-0n-pL6" id="tWF-f4-tUC"/>
+                <outlet property="markerCurlyColorWell" destination="nSY-cq-eM5" id="hKU-cD-noy"/>
+                <outlet property="markerParenColorWell" destination="reU-t7-v6S" id="UVn-D9-MBc"/>
+                <outlet property="markerSquareColorWell" destination="gzM-iq-Yn6" id="O0L-aR-VzL"/>
                 <outlet property="remainingParagraphIndentField" destination="yin-ka-Bvq" id="YMn-nP-yC2"/>
                 <outlet property="stylePanel" destination="zqP-SU-nzq" id="Cyi-IC-6Ta"/>
                 <outlet property="styleTitle" destination="wMs-0N-ogH" id="lIn-5g-sgU"/>
@@ -3138,7 +3141,7 @@ DQ
                                             <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                             <font key="font" metaFont="system"/>
                                             <tabViewItems>
-                                                <tabViewItem label="Regolare" identifier="" id="F6p-Ko-gqg">
+                                                <tabViewItem label="Colori regolari" identifier="" id="F6p-Ko-gqg">
                                                     <view key="view" id="zz9-h3-hel">
                                                         <rect key="frame" x="10" y="33" width="377" height="490"/>
                                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
@@ -3682,7 +3685,7 @@ DQ
                                                         </subviews>
                                                     </view>
                                                 </tabViewItem>
-                                                <tabViewItem label="expl3" identifier="" id="RiH-Wt-uWc">
+                                                <tabViewItem label="Più colori" identifier="" id="RiH-Wt-uWc">
                                                     <view key="view" id="uxE-Iv-yLN">
                                                         <rect key="frame" x="10" y="33" width="377" height="490"/>
                                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
@@ -3826,6 +3829,66 @@ DQ
                                                                 </view>
                                                                 <font key="titleFont" metaFont="system"/>
                                                             </box>
+                                                            <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Tzj-5L-O9E">
+                                                                <rect key="frame" x="101" y="316" width="29" height="14"/>
+                                                                <autoresizingMask key="autoresizingMask"/>
+                                                                <textFieldCell key="cell" lineBreakMode="clipping" title="per (" id="eTM-qg-4Ey">
+                                                                    <font key="font" metaFont="message" size="11"/>
+                                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                                </textFieldCell>
+                                                            </textField>
+                                                            <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="esk-u7-S5i">
+                                                                <rect key="frame" x="193" y="316" width="29" height="14"/>
+                                                                <autoresizingMask key="autoresizingMask"/>
+                                                                <textFieldCell key="cell" lineBreakMode="clipping" title="per {" id="yeF-T5-84L">
+                                                                    <font key="font" metaFont="message" size="11"/>
+                                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                                </textFieldCell>
+                                                            </textField>
+                                                            <colorWell fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="reU-t7-v6S">
+                                                                <rect key="frame" x="102" y="291" width="59" height="24"/>
+                                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                                <color key="color" red="0.05813049898" green="0.055541899059999997" blue="1" alpha="1" colorSpace="calibratedRGB"/>
+                                                                <connections>
+                                                                    <action selector="markerParenColorChanged:" target="-2" id="jXL-VM-6Zx"/>
+                                                                </connections>
+                                                            </colorWell>
+                                                            <colorWell fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="nSY-cq-eM5">
+                                                                <rect key="frame" x="191" y="291" width="59" height="24"/>
+                                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                                <color key="color" red="0.05813049898" green="0.055541899059999997" blue="1" alpha="1" colorSpace="calibratedRGB"/>
+                                                                <connections>
+                                                                    <action selector="markerCurlyColorChanged:" target="-2" id="UoJ-fd-Uxu"/>
+                                                                </connections>
+                                                            </colorWell>
+                                                            <colorWell fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="gzM-iq-Yn6">
+                                                                <rect key="frame" x="279" y="291" width="59" height="24"/>
+                                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                                <color key="color" red="0.05813049898" green="0.055541899059999997" blue="1" alpha="1" colorSpace="calibratedRGB"/>
+                                                                <connections>
+                                                                    <action selector="markerSquareColorChanged:" target="-2" id="Zso-0F-Jge"/>
+                                                                </connections>
+                                                            </colorWell>
+                                                            <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Nky-k9-bE9">
+                                                                <rect key="frame" x="28" y="292" width="58" height="20"/>
+                                                                <autoresizingMask key="autoresizingMask"/>
+                                                                <textFieldCell key="cell" lineBreakMode="clipping" title="Marcatore" id="BGy-Nf-p7J">
+                                                                    <font key="font" metaFont="message" size="11"/>
+                                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                                </textFieldCell>
+                                                            </textField>
+                                                            <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="CkC-4M-UL7">
+                                                                <rect key="frame" x="281" y="316" width="29" height="14"/>
+                                                                <autoresizingMask key="autoresizingMask"/>
+                                                                <textFieldCell key="cell" lineBreakMode="clipping" title="per [" id="Tga-RR-wxI">
+                                                                    <font key="font" metaFont="message" size="11"/>
+                                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                                </textFieldCell>
+                                                            </textField>
                                                         </subviews>
                                                     </view>
                                                 </tabViewItem>

@@ -165,6 +165,15 @@ static id sharedColorSupport = nil;
             return [NSColor colorWithRed: 0.85 green: 0.29 blue: 0.36 alpha: 1.00];
         else if ([theKey isEqualToString: @"explmsg"])
             return [NSColor colorWithRed: .00 green: .57 blue: .57 alpha: 1.00];
+  
+    
+        else if ([theKey isEqualToString: @"SyntaxMarkerParen"])
+            return [NSColor colorWithRed: .02 green: .51 blue: .13 alpha: 1.00];
+        else if ([theKey isEqualToString: @"SyntaxMarkerCurly"])
+            return [NSColor colorWithRed: .02 green: .51 blue: .13 alpha: 1.00];
+        else if ([theKey isEqualToString: @"SyntaxMarkerSquare"])
+            return [NSColor colorWithRed: .02 green: .51 blue: .13 alpha: 1.00];
+    
     
     else
         return [NSColor colorWithRed: 1.00  green: 1.00 blue: 1.00 alpha:1.00];
@@ -204,7 +213,14 @@ static id sharedColorSupport = nil;
         return [NSColor colorWithRed: 0.85 green: 0.29 blue: 0.36 alpha: 1.00];
     else if ([theKey isEqualToString: @"explmsg"])
         return [NSColor colorWithRed: .00 green: .57 blue: .57 alpha: 1.00];
-
+    
+    
+    else if ([theKey isEqualToString: @"SyntaxMarkerParen"])
+        return [NSColor colorWithRed: 0.96766179800033569 green: 0.57783806324005127 blue: 0.9108852744102478 alpha: 1.00];
+    else if ([theKey isEqualToString: @"SyntaxMarkerCurly"])
+        return [NSColor colorWithRed: 0.96766179800033569 green: 0.57783806324005127 blue: 0.9108852744102478 alpha: 1.00];
+    else if ([theKey isEqualToString: @"SyntaxMarkerSquare"])
+        return [NSColor colorWithRed: 0.96766179800033569 green: 0.57783806324005127 blue: 0.9108852744102478 alpha: 1.00];
     
     else
         return [NSColor colorWithRed: 0.00  green: 0.00 blue: 0.00 alpha:1.00];

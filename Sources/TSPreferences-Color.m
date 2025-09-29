@@ -173,7 +173,15 @@ NSInteger stringSort(id s1, id s2, void *context)
     SyntaxCommandColorWell.color = [colorSupport colorAndAlphaFromDictionary:EditingColors andKey: @"SyntaxCommand"];
     SyntaxMarkerColorWell.color = [colorSupport colorAndAlphaFromDictionary:EditingColors andKey: @"SyntaxMarker"];
     SyntaxIndexColorWell.color = [colorSupport colorAndAlphaFromDictionary:EditingColors andKey: @"SyntaxIndex"];
-
+    
+    //markerParenColorWell.color = [colorSupport colorAndAlphaFromDictionary:EditingColors andKey: @"SyntaxMarkerParen"];
+    //markerCurlyColorWell.color = [colorSupport colorAndAlphaFromDictionary:EditingColors andKey: @"SyntaxMarkerCurly"];
+    //markerSquareColorWell.color = [colorSupport colorAndAlphaFromDictionary:EditingColors andKey: @"SyntaxMarkerSquare"];
+    markerParenColorWell.color = [colorSupport colorForKey: @"SyntaxMarkerParen" isWindowDark: withDarkColors];
+    markerCurlyColorWell.color = [colorSupport colorForKey: @"SyntaxMarkerCurly" isWindowDark: withDarkColors];
+    markerSquareColorWell.color = [colorSupport colorForKey: @"SyntaxMarkerSquare" isWindowDark: withDarkColors];
+    
+    
         
     explFunctionColorWell.color = [colorSupport colorForKey: @"explFunction" isWindowDark: withDarkColors];
     explVariableColorWell.color = [colorSupport colorForKey: @"explVariable" isWindowDark: withDarkColors];
@@ -937,6 +945,55 @@ NSInteger stringSort(id s1, id s2, void *context)
     [[NSNotificationCenter defaultCenter] postNotificationName:SourceColorChangedNotification object:self userInfo: EditingColors];
 
 }
+
+- (IBAction)markerParenColorChanged:sender
+{
+    TSColorSupport *colorSupport = [TSColorSupport sharedInstance];
+    
+    if ((! _prefsWindow.keyWindow ) && (! [NSColorPanel sharedColorPanel].keyWindow))
+    {
+        [[NSColorPanel sharedColorPanel] close];
+        NSColor *oldColor = [colorSupport colorFromDictionary:EditingColors andKey: @"SyntaxMarkerParen"];
+        ((NSColorWell *)sender).color = oldColor;
+    }
+    [colorSupport changeColorValueInDictionary: EditingColors forKey: @"SyntaxMarkerParen" fromColorWell:sender];
+    [[NSNotificationCenter defaultCenter] postNotificationName:SourceColorChangedNotification object:self userInfo: EditingColors];
+
+}
+
+- (IBAction)markerCurlyColorChanged:sender
+{
+    
+    TSColorSupport *colorSupport = [TSColorSupport sharedInstance];
+    
+    if ((! _prefsWindow.keyWindow ) && (! [NSColorPanel sharedColorPanel].keyWindow))
+    {
+        [[NSColorPanel sharedColorPanel] close];
+        NSColor *oldColor = [colorSupport colorFromDictionary:EditingColors andKey: @"SyntaxMarkerCurly"];
+        ((NSColorWell *)sender).color = oldColor;
+    }
+    [colorSupport changeColorValueInDictionary: EditingColors forKey: @"SyntaxMarkerCurly" fromColorWell:sender];
+    [[NSNotificationCenter defaultCenter] postNotificationName:SourceColorChangedNotification object:self userInfo: EditingColors];
+
+}
+
+- (IBAction)markerSquareColorChanged:sender
+{
+    
+    TSColorSupport *colorSupport = [TSColorSupport sharedInstance];
+    
+    if ((! _prefsWindow.keyWindow ) && (! [NSColorPanel sharedColorPanel].keyWindow))
+    {
+        [[NSColorPanel sharedColorPanel] close];
+        NSColor *oldColor = [colorSupport colorFromDictionary:EditingColors andKey: @"SyntaxMarkerSquare"];
+        ((NSColorWell *)sender).color = oldColor;
+    }
+    [colorSupport changeColorValueInDictionary: EditingColors forKey: @"SyntaxMarkerSquare" fromColorWell:sender];
+    [[NSNotificationCenter defaultCenter] postNotificationName:SourceColorChangedNotification object:self userInfo: EditingColors];
+
+}
+
+
 
 - (IBAction)explVariableColorChanged:sender
 {

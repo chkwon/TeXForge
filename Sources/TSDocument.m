@@ -313,6 +313,9 @@ withDarkColors = NO;
 	self.commentColorAttribute = 0;
 	self.indexColorAttribute = 0;
 	self.markerColorAttribute = 0;
+    self.markerColorParenAttribute = 0;
+    self.markerColorCurlyAttribute = 0;
+    self.markerColorSquareAttribute = 0;
     
     [self readExplColors];
     [self setToggleEditModeCheck:0];

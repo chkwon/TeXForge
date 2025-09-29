@@ -48,6 +48,7 @@
     NSColor *myBackgroundColor;
     NSColor *myTextColor;
     NSColor *mySyntaxColor;
+    NSColor *mySyntaxColorTemp;
     NSColor *myEntryColor;
     NSColor *myColor;
     NSArray *myArray;
@@ -220,6 +221,74 @@
     
     mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarker"];
     self.markerColorAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    
+    mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarkerParen"];
+    /*
+     if (mySyntaxColor == nil) {
+        if (withDarkColors)
+            mySyntaxColor = [[TSColorSupport sharedInstance] darkColorAndAlphaWithKey: @"SyntaxMarker"];
+        else
+            mySyntaxColor = [[TSColorSupport sharedInstance] liteColorAndAlphaWithKey: @"SyntaxMarker"];
+    }
+    */
+    self.markerColorParenAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    
+    mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarkerCurly"];
+    /*
+     if (mySyntaxColor == nil) {
+        if (withDarkColors)
+            mySyntaxColor = [[TSColorSupport sharedInstance] darkColorAndAlphaWithKey: @"SyntaxMarker"];
+        else
+            mySyntaxColor = [[TSColorSupport sharedInstance] liteColorAndAlphaWithKey: @"SyntaxMarker"];
+    }
+    */
+    self.markerColorCurlyAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    
+    mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarkerSquare"];
+    /*
+     if (mySyntaxColor == nil) {
+        if (withDarkColors)
+            mySyntaxColor = [[TSColorSupport sharedInstance] darkColorAndAlphaWithKey: @"SyntaxMarker"];
+        else
+            mySyntaxColor = [[TSColorSupport sharedInstance] liteColorAndAlphaWithKey: @"SyntaxMarker"];
+    }
+    */
+    self.markerColorSquareAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    
+    
+    
+    
+    
+    
+/*
+    mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarkerParen"];
+    if (mySyntaxColor == nil)
+    {
+        mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarker"];
+        self.markerColorParenAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    }
+    else
+        self.markerColorParenAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    
+    
+    mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarkerCurly"];
+    if (mySyntaxColor == nil)
+    {
+        mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarker"];
+        self.markerColorParenAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    }
+    else
+        self.markerColorCurlyAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    
+    mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarkerSquare"];
+    if (mySyntaxColor == nil)
+    {
+        mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarker"];
+        self.markerColorParenAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+    }
+    else
+        self.markerColorSquareAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
+ */
     
     mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxIndex"];
     if (mySyntaxColor == nil) {

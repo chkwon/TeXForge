@@ -336,13 +336,32 @@ static BOOL isValidOrdinaryTeXCommandChar(NSInteger c)
         else if ((self.fileIsXML) && (theChar == '&'))
             [self syntaxColorLimitedXML: &location and: aLineEnd using: textString with: layoutManager];
         
-        else if ((theChar == '{') || (theChar == '}') || (theChar == '[') || (theChar == ']') || (theChar == '&') || (theChar == '$')) {
-            // The six special characters { } [ ] & $ get an extra color.
+        else if ((theChar == '&') || (theChar == '$')) {
+            // The teo special characters & $ get an extra color.
             colorRange.location = location;
             colorRange.length = 1;
             [layoutManager addTemporaryAttributes:self.markerColorAttribute forCharacterRange:colorRange];
             location++;
-        } else if (theChar == '%') {
+        }
+        else if ((theChar == '[') || (theChar == ']')) {
+            colorRange.location = location;
+            colorRange.length = 1;
+            [layoutManager addTemporaryAttributes:self.markerColorSquareAttribute forCharacterRange:colorRange];
+            location++;
+        }
+        else if ((theChar == '{') || (theChar == '}')) {
+            colorRange.location = location;
+            colorRange.length = 1;
+            [layoutManager addTemporaryAttributes:self.markerColorCurlyAttribute forCharacterRange:colorRange];
+            location++;
+        }
+        else if ((theChar == '(') || (theChar == ')')) {
+            colorRange.location = location;
+            colorRange.length = 1;
+            [layoutManager addTemporaryAttributes:self.markerColorParenAttribute forCharacterRange:colorRange];
+            location++;
+        }
+        else if (theChar == '%') {
             // Comments are started by %. Everything after that on the same line is a comment.
             colorRange.location = location;
             colorRange.length = 1;

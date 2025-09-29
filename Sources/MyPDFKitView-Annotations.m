@@ -1004,7 +1004,7 @@ static NSRect RectPlusScale (NSRect aRect, float scale)
         mustDoFullSave = NO;
     
     mustSaveAnnotations = YES;
-    /*  later decided to save all if guard rails
+    /* later decided to save all
     if (fromTypesetOrQuit)
         mustSaveAnnotations = NO;
     else
@@ -1055,7 +1055,7 @@ static NSRect RectPlusScale (NSRect aRect, float scale)
         rawPath = [filePath stringByDeletingPathExtension];
         writePath = [[rawPath stringByAppendingString:@"-Annotated"] stringByAppendingPathExtension:@"pdf"];
         /*
-        if (doFullSave)
+         if (doFullSave)
         {
             writePath = [[rawPath stringByAppendingString:@"-Annotated"] stringByAppendingPathExtension:@"pdf"];
         }

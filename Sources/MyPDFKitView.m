@@ -123,7 +123,7 @@
 
 - (void)scrollWheel:(NSEvent *)theEvent
 {
-    NSLog(@"scrollWheel Called");
+    // NSLog(@"scrollWheel Called");
     [super scrollWheel:theEvent];
 }
 */
@@ -2039,7 +2039,7 @@ if ((atLeastHighSierra) && (! atLeastMojave) && (self.myDocument.pdfKitWindow.wi
     
     
     /*
-     NSLog(@"the page is %d", n);
+     // NSLog(@"the page is %d", n);
      
      switch (theNumber) {
      
@@ -4205,6 +4205,7 @@ if (! self.skipLinks)
 	}
 }
 
+/*
 - (void)handleLink: (NSTimer *) theTimer
 {
     
@@ -4371,6 +4372,213 @@ if (! self.skipLinks)
     
     // [self doKillPopup];
 }
+*/
+
+- (void)handleLink: (NSTimer *) theTimer
+{
+    
+    NSPoint         mouseDownLoc, mouseLocDocumentView;
+    PDFPage         *activePage;
+    NSPoint         pagePoint;
+    PDFAnnotation   *theAnnotation;
+    NSURL           *theURL;
+    PDFDestination  *theDestination;
+    PDFPage         *linkedPage;
+    NSPoint         linkedPoint;
+    NSRect          aRect, bRect, vRect;
+    NSInteger       H = 120, W = 400;
+    NSInteger       leftSide, rightSide;
+    NSRect          pageBounds;
+    BOOL            largerSize, pushUp, longTerm;
+    
+    largerSize = NO;
+    pushUp = NO;
+  //  longTerm = NO;
+    
+    NSNumber *timerNumberObject = (NSNumber *)theTimer.userInfo[0];
+    NSInteger aTimerNumber = [(NSNumber *)theTimer.userInfo[0] integerValue];
+    if (aTimerNumber != self.timerNumber)
+        return;
+    NSPoint originalPoint = [(NSValue *)theTimer.userInfo[1] pointValue];
+    NSEvent *theEvent = (NSEvent *)theTimer.userInfo[2];
+    NSPoint currentPoint = [NSEvent mouseLocation];
+    
+    if ((fabs(originalPoint.x - currentPoint.x) > 30) || (fabs(originalPoint.y - currentPoint.y) > 30))
+    {
+        self.handlingLink = 0;
+        return;
+    }
+    
+    mouseDownLoc = [self convertPoint: [theEvent locationInWindow] fromView: NULL]; // in PDFView
+    mouseLocDocumentView = [[self documentView] convertPoint: [theEvent locationInWindow] fromView:nil]; // DocumentView
+    
+    activePage = [self pageForPoint: mouseDownLoc nearest: YES];
+    pagePoint = [self convertPoint: mouseDownLoc toPage: activePage];
+    theAnnotation = [activePage annotationAtPoint: pagePoint];
+    NSString *theType = [theAnnotation type];
+    if ([theType isEqualToString: @"Link"]) {
+        theURL = [(PDFAnnotationLink *)theAnnotation URL]; // we will do nothing if it is a link to an external page
+        theDestination = [(PDFAnnotationLink *)theAnnotation destination];
+        if (theDestination) {
+            linkedPage = [theDestination page];
+            pageBounds = [linkedPage boundsForBox: kPDFDisplayBoxMediaBox];
+            linkedPoint = [theDestination point];
+            //NSLog(@"page origin %f and %f", pageBounds.origin.x, pageBounds.origin.y);
+            //NSLog(@"page bounds %f and %f", pageBounds.size.width, pageBounds.size.height);
+            //NSLog(@"destination %f %f", linkedPoint.x, linkedPoint.y);
+            
+            if ([[NSApp currentEvent] modifierFlags] & NSCommandKeyMask)
+                largerSize = YES;
+            if ([[NSApp currentEvent] modifierFlags] & NSShiftKeyMask)
+                pushUp = YES;
+            if ([[NSApp currentEvent] modifierFlags] & NSAlternateKeyMask)
+                self.globalLongTerm = YES;
+            
+            
+             
+            // aRect = where text comes from
+            if (linkedPoint.x <= (pageBounds.size.width / 2.0))
+                
+            {
+               // NSLog(@"less than");
+                
+                aRect.origin.x =  linkedPoint.x - 5 ;
+                aRect.origin.y = linkedPoint.y - H + 10   ;
+                aRect.size.height = H;
+                aRect.size.width = W;
+                
+                if (largerSize) {
+                   // aRect.origin.x =  linkedPoint.x - 5 ;
+                    aRect.origin.x =  linkedPoint.x - 10 ;
+                    aRect.origin.y = linkedPoint.y - 3 * H  +10  ;
+                    aRect.size.height =  3 * H;
+                    //aRect.size.width = 1.1 * W;
+                    aRect.size.width = 1.1 * W + 5;
+                    }
+            }
+            
+            // Special Test
+            
+            
+           else // was if  (linkedPoint.x > (pageBounds.size.width / 2.0))
+           {
+               //NSLog(@"otherwise");
+               aRect.origin.x =  linkedPoint.x - 5 ;
+               aRect.origin.y = linkedPoint.y - H + 10   ;
+               //aRect.origin.x =  linkedPoint.x - W - 5;
+               //aRect.origin.y = linkedPoint.y - H * 0.6; //0.6;
+               aRect.size.height = H;
+               aRect.size.width = W;
+           }
+            
+            
+            
+            
+            
+            
+         /*
+            {
+                aRect.origin.x =  linkedPoint.x - W - 5;
+                aRect.origin.y = linkedPoint.y - H * 0.6; //0.6;
+                aRect.size.height = H;
+                aRect.size.width = W;
+                
+                if (largerSize) {
+                    aRect.origin.x =  linkedPoint.x - W - 10 ;
+                    aRect.origin.y = linkedPoint.y - 3 * H * 0.2  -10  ;
+                    aRect.size.height =  3 * H;
+                    //aRect.size.width = 1.1 * W;
+                    aRect.size.width = 1.1 * W + 5;
+                    }
+            }
+            */
+            
+               
+            
+            
+            
+            // bRect = position on viewing screen
+            bRect.origin.x = mouseLocDocumentView.x + 10;
+            bRect.origin.y = mouseLocDocumentView.y - 2 * H / 3.0 - 10;
+            bRect.size.height = 2 * H / 3.0;
+            bRect.size.width = 2 * W / 3.0;
+           
+            if (pushUp)
+                bRect.origin.y = bRect.origin.y + bRect.size.height + 10;
+            
+            if (largerSize) {
+                
+                bRect.origin.x = mouseLocDocumentView.x - 5;
+                bRect.origin.y = mouseLocDocumentView.y  - 3 * H - 10 ;
+                bRect.size.height = 3 * H ;
+                // // bRect.size.width = 1.1 * W ;
+                bRect.size.width = 1.1 * W + 5;
+                
+                // bRect.origin.x = mouseLocDocumentView.x - 5;
+                // bRect.origin.y = mouseLocDocumentView.y  - 2.5 * H - 10 ;
+                // bRect.size.height = 2.5 * H ;
+                // // bRect.size.width = 1.1 * W ;
+                // bRect.size.width = W; // + 5;
+                
+                
+                if (pushUp)
+                    bRect.origin.y = bRect.origin.y + bRect.size.height + 10;
+                }
+            
+            
+            
+            
+            // Now make Tristan Hubsch modification
+            
+            
+            vRect = [self documentView].visibleRect;
+            leftSide = vRect.origin.x;
+            rightSide = vRect.origin.x + vRect.size.width;
+            if (bRect.origin.x < (leftSide + 5))
+                bRect.origin.x = leftSide + 5;
+            else if (bRect.origin.x + bRect.size.width > (rightSide - 5))
+                bRect.origin.x = rightSide - 5 - bRect.size.width;
+            
+            
+            NSData    *myData = [linkedPage dataRepresentation];
+            NSImage *myImageNew = [[NSImage alloc] initWithData: myData];
+            OverView *theOverView = [[OverView alloc] initWithFrame: [[self documentView] frame] ];
+            if (self.overView) {
+                [self.overView removeFromSuperview];
+                self.overView = nil;
+            }
+            self.overView =  theOverView;
+            [[self documentView] addSubview: [self overView]];
+            
+            [[self overView] setDrawRubberBand: NO];
+            [[self overView] setDrawMagnifiedRect: NO];
+            [[self overView] setDrawMagnifiedImage: YES];
+            [[self overView] setSelectionRect: bRect];
+            [[self overView] setMagnifiedRect: aRect];
+            [[self overView] setMagnifiedImage: myImageNew];
+            [[self overView] setNeedsDisplayInRect: [[self documentView] visibleRect]];
+            
+            // theSelection = [linkedPage selectionForRect: aRect];
+            // outputString = [theSelection string];
+            // if (outputString)
+            // NSLog(outputString);
+            self.handlingLink = 2;
+            NSArray *info = [NSArray arrayWithObjects: timerNumberObject, nil];
+            [NSTimer scheduledTimerWithTimeInterval:4.0
+                                             target:self
+                                           selector:@selector(killPopup:)
+                                           userInfo:info
+                                            repeats:NO];
+            
+            return;
+            
+        }
+        else    self.handlingLink = 0;
+    }
+    
+    // [self doKillPopup];
+}
+
 
 
 

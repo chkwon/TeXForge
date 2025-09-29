@@ -79,7 +79,7 @@
             
 \usepackage[all]{hypcap}  % For well-positioned anchors for floats
 
-\title{TeXShop Manual \\ Version 1.4.6}
+\title{TeXShop Manual \\ Version 1.4.7}
 \author{Richard Koch}
 %\date{}							% Activate to display a given date or no date
 
@@ -3533,7 +3533,14 @@ One final item in the left column must be explained, but it is essentially obsol
 
 Recall that various TeXShop items which users can customize are set in \path{~/Library/TeXShop}. This folder has various subfolders. There is a new folder in \path{~/Library/TeXShop} named ``Themes''.  This folder contains very small ``.plist'' files describing the various Themes in TeXShop. If you create a theme you like, give it to others by putting its plist file on the Internet. To install a new theme of this kind, just drop its plist form in the Themes folder.
 
-You can also remove Themes you no longer use by removing their plist files from the Themes folder. Avoid removing themes being used for Lite Mode or Dark Mode (although TeXShop should react gracefully when it runs into this situation). As explained earlier, the themes LiteTheme and DarkTheme will be recreated if they are removed.
+An actual Theme plist file can be opened in TeXShop. You'll find that it has a very simple structure.
+The file contains a list of colors. After each color, its red, green, blue, and transparency values are listed.
+Each is a real number between zero and one.
+
+It is possible to directly edit this file in TeXShop, but there is a slight complication. When TeXShop
+saves the edited file, the new version does not quite meet required standards for a plist file, so TeXShop cannot read the file. I haven't traced what goes wrong because there is an easy solution. If you have downloaded Apple's free program XCode, then .plist files also open in XCode. These files can be edited in XCode, and .plist files saved by XCode have the correct structure. Moreover, if you edit a plist file in TeXShop, you can later open it and then close it in XCode, and now it will have exactly the right structure.
+
+You can  remove Themes you no longer use by removing their plist files from the Themes folder. Avoid removing themes being used for Lite Mode or Dark Mode (although TeXShop should react gracefully when it runs into this situation). As explained earlier, the themes LiteTheme and DarkTheme will be recreated if they are removed.
 
 When a theme is selected for editing, TeXShop colors will temporarily be reset to those colors. Revising colors is then interactive; as soon as colors change in Preferences, they will also change in TeXShop's Source and Preview windows.
 
@@ -3564,6 +3571,10 @@ The colors ``Invisible Chars, Enclosed Chars, Braces'' are used for some feature
  Finally the XML Syntax colors are colors used when TeXShop syntax colors html, xml, and ptr files, as described in the chapter on Html, TeX4ht, and PreTeXt.
  
  To be completely honest, one color is not set in the Themes panel. It is the color of the optional block cursor, set in the Misc1 tab of Preferences. This will be discussed in a later chapter of this Manual.
+ 
+ In September, 2025, a user requested that marker symbols be colored in a more precise manner.
+ Before then, round parentheses were not colored, and the pairs \{ \}, [ ], and symbols \& and \$  were all given the same coloring. Starting in September, 2025, only \& and \$ are given the standard ``marker''
+ color, and three new colors are provided for the three pairs ( ), \{ \}, and [ ].
  
  \chapter{expl3 Syntax Coloring}
  

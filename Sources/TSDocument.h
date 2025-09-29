@@ -402,6 +402,9 @@ enum RootCommand
 @property (retain)  NSDictionary		*commandColorAttribute;
 @property (retain)  NSDictionary		*commentColorAttribute;
 @property (retain)  NSDictionary		*markerColorAttribute;
+@property (retain)  NSDictionary        *markerColorParenAttribute;
+@property (retain)  NSDictionary        *markerColorCurlyAttribute;
+@property (retain)  NSDictionary        *markerColorSquareAttribute;
 @property (retain)  NSDictionary		*indexColorAttribute;
 @property (retain)  NSDictionary        *footnoteColorAttribute;
 

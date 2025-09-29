@@ -11,51 +11,51 @@
 	</array>
 	<key>ConsoleBackground</key>
 	<array>
-		<real>0.14935342465753423</real>
-		<real>0.22596489726027408</real>
-		<real>0.23545102739726018</real>
+		<real>0.1493534246575342</real>
+		<real>0.2259648972602741</real>
+		<real>0.2354510273972602</real>
 		<real>1</real>
 	</array>
 	<key>ConsoleText</key>
 	<array>
-		<real>0.88316031678082196</real>
-		<real>0.71256956335616439</real>
-		<real>0.49071596746575341</real>
+		<real>0.883160316780822</real>
+		<real>0.7125695633561644</real>
+		<real>0.4907159674657534</real>
 		<real>1</real>
 	</array>
 	<key>EditorBackground</key>
 	<array>
-		<real>0.11702241003513336</real>
-		<real>0.12134559452533722</real>
-		<real>0.10160407423973083</real>
+		<real>0.1170224100351334</real>
+		<real>0.1213455945253372</real>
+		<real>0.1016040742397308</real>
 		<real>1</real>
 	</array>
 	<key>EditorFlash</key>
 	<array>
 		<real>0.01332585234194994</real>
-		<real>0.15222544968128204</real>
-		<real>0.15042024850845337</real>
+		<real>0.152225449681282</real>
+		<real>0.1504202485084534</real>
 		<real>1</real>
 	</array>
 	<key>EditorHighlightBraces</key>
 	<array>
 		<real>1</real>
-		<real>0.64328703703703705</real>
-		<real>0.010999999999999999</real>
+		<real>0.643287037037037</real>
+		<real>0.011</real>
 		<real>1</real>
 	</array>
 	<key>EditorHighlightContent</key>
 	<array>
 		<real>0.4756349325</real>
-		<real>0.47564673419999998</real>
-		<real>0.47564041610000002</real>
+		<real>0.4756467342</real>
+		<real>0.4756404161</real>
 		<real>1</real>
 	</array>
 	<key>EditorInsertionPoint</key>
 	<array>
-		<real>0.89996254280821919</real>
-		<real>0.89378210616438358</real>
-		<real>0.78686857876712324</real>
+		<real>0.8999625428082192</real>
+		<real>0.8937821061643836</real>
+		<real>0.7868685787671232</real>
 		<real>1</real>
 	</array>
 	<key>EditorInvisibleChar</key>
@@ -67,30 +67,30 @@
 	</array>
 	<key>EditorReverseSync</key>
 	<array>
-		<real>0.58072251080000004</real>
+		<real>0.5807225108</real>
 		<real>0.066734083</real>
-		<real>0.0</real>
+		<real>0</real>
 		<real>1</real>
 	</array>
 	<key>EditorText</key>
 	<array>
-		<real>0.89768518518518514</real>
-		<real>0.88935185185185184</real>
-		<real>0.78770254629629632</real>
+		<real>0.8976851851851851</real>
+		<real>0.8893518518518518</real>
+		<real>0.7877025462962963</real>
 		<real>1</real>
 	</array>
 	<key>EntryColor</key>
 	<array>
 		<real>1</real>
-		<real>0.0</real>
-		<real>0.0</real>
+		<real>0</real>
+		<real>0</real>
 		<real>1</real>
 	</array>
 	<key>FootnoteColor</key>
 	<array>
-		<real>0.84872084856033325</real>
-		<real>0.65555459260940552</real>
-		<real>0.41772550344467163</real>
+		<real>0.8487208485603333</real>
+		<real>0.6555545926094055</real>
+		<real>0.4177255034446716</real>
 		<real>1</real>
 	</array>
 	<key>ImageBackground</key>
@@ -109,16 +109,16 @@
 	</array>
 	<key>LogBackground</key>
 	<array>
-		<real>0.90001605308219179</real>
+		<real>0.9000160530821918</real>
 		<real>0.8886183647260274</real>
-		<real>0.87235124143835618</real>
+		<real>0.8723512414383562</real>
 		<real>1</real>
 	</array>
 	<key>LogText</key>
 	<array>
-		<real>0.0</real>
-		<real>0.0</real>
-		<real>0.0</real>
+		<real>0</real>
+		<real>0</real>
+		<real>0</real>
 		<real>1</real>
 	</array>
 	<key>PreviewAlpha</key>
@@ -130,17 +130,17 @@
 	</array>
 	<key>PreviewBackground</key>
 	<array>
-		<real>0.83741801979999997</real>
-		<real>0.83743780850000005</real>
-		<real>0.83742713930000001</real>
+		<real>0.8374180198</real>
+		<real>0.8374378085</real>
+		<real>0.8374271393</real>
 		<real>1</real>
 	</array>
 	<key>PreviewDirectSync</key>
 	<array>
-		<real>0.88217037671232879</real>
-		<real>0.71422838184931503</real>
-		<real>0.48860231164383561</real>
-		<real>0.59999999999999998</real>
+		<real>0.8821703767123288</real>
+		<real>0.714228381849315</real>
+		<real>0.4886023116438356</real>
+		<real>0.6</real>
 	</array>
 	<key>SourceAlpha</key>
 	<array>
@@ -158,9 +158,9 @@
 	</array>
 	<key>SyntaxComment</key>
 	<array>
-		<real>0.42146489950144628</real>
-		<real>0.48413497357315932</real>
-		<real>0.48871422298063483</real>
+		<real>0.4214648995014463</real>
+		<real>0.4841349735731593</real>
+		<real>0.4887142229806348</real>
 		<real>1</real>
 	</array>
 	<key>SyntaxIndex</key>
@@ -173,8 +173,29 @@
 	<key>SyntaxMarker</key>
 	<array>
 		<real>1</real>
-		<real>0.57810515169999999</real>
-		<real>0.0</real>
+		<real>0.5781051517</real>
+		<real>0</real>
+		<real>1</real>
+	</array>
+	<key>SyntaxMarkerParen</key>
+	<array>
+		<real>1</real>
+		<real>1</real>
+		<real>1</real>
+		<real>1</real>
+	</array>
+	<key>SyntaxMarkerCurly</key>
+	<array>
+		<real>1</real>
+		<real>1</real>
+		<real>1</real>
+		<real>1</real>
+	</array>
+	<key>SyntaxMarkerSquare</key>
+	<array>
+		<real>1</real>
+		<real>1</real>
+		<real>1</real>
 		<real>1</real>
 	</array>
 	<key>Title</key>
@@ -188,30 +209,30 @@
 	</array>
 	<key>XMLParameter</key>
 	<array>
-		<real>0.52057182788848877</real>
-		<real>0.89261257648468018</real>
-		<real>0.0</real>
+		<real>0.5205718278884888</real>
+		<real>0.8926125764846802</real>
+		<real>0</real>
 		<real>1</real>
 	</array>
 	<key>XMLSpecial</key>
 	<array>
-		<real>0.0</real>
-		<real>0.29999999999999999</real>
+		<real>0</real>
+		<real>0.3</real>
 		<real>1</real>
 		<real>1</real>
 	</array>
 	<key>XMLTag</key>
 	<array>
 		<real>1</real>
-		<real>0.0</real>
-		<real>0.36892905831336975</real>
+		<real>0</real>
+		<real>0.3689290583133698</real>
 		<real>1</real>
 	</array>
 	<key>XMLValue</key>
 	<array>
-		<real>0.89328694343566895</real>
-		<real>0.83530277013778687</real>
-		<real>0.31120836734771729</real>
+		<real>0.8932869434356689</real>
+		<real>0.8353027701377869</real>
+		<real>0.3112083673477173</real>
 		<real>1</real>
 	</array>
 </dict>

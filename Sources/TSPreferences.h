@@ -256,6 +256,10 @@
     IBOutlet NSColorWell    *explmykeyArgumentColorWell;
     IBOutlet NSColorWell    *explmsgColorWell;
     
+    IBOutlet NSColorWell    *markerParenColorWell;
+    IBOutlet NSColorWell    *markerCurlyColorWell;
+    IBOutlet NSColorWell    *markerSquareColorWell;
+    
     IBOutlet NSButton       *XMLchapter;
     IBOutlet NSButton       *XMLsection;
     IBOutlet NSButton       *XMLsubsection;
@@ -455,6 +459,10 @@
 - (IBAction)explmykeyColorChanged:sender;
 - (IBAction)explmykeyArgumentColorChanged:sender;
 - (IBAction)explmsgColorChanged:sender;
+
+- (IBAction)markerParenColorChanged:sender;
+- (IBAction)markerCurlyColorChanged:sender;
+- (IBAction)markerSquareColorChanged:sender;
 
 - (IBAction)EditorReverseSyncChanged:sender;
 - (IBAction)PreviewDirectSyncChanged:sender;
