@@ -167,9 +167,6 @@
                 <outlet property="explmykeyColorWell" destination="VKf-na-3FW" id="hot-zh-03A"/>
                 <outlet property="firstParagraphIndentField" destination="OVb-H2-Bhm" id="yXa-QH-Zhy"/>
                 <outlet property="interlineSpacingField" destination="00c-5o-gyf" id="ICI-gc-NF1"/>
-                <outlet property="markerCurlyColorWell" destination="nyY-eq-Pu3" id="DKc-WH-i6n"/>
-                <outlet property="markerParenColorWell" destination="SPi-5i-u8i" id="g0N-Yf-buR"/>
-                <outlet property="markerSquareColorWell" destination="sU5-38-KBN" id="NHg-nq-MaY"/>
                 <outlet property="remainingParagraphIndentField" destination="NLf-NT-md1" id="9RI-BV-Sv5"/>
                 <outlet property="stylePanel" destination="Odr-ge-CwJ" id="DBc-Iz-r86"/>
                 <outlet property="tabIndentField" destination="0qq-37-cSJ" id="MHE-9H-grM"/>
@@ -3854,66 +3851,6 @@ DQ
                                                 </tabViewItem>
                                             </tabViewItems>
                                         </tabView>
-                                        <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="2L6-7s-2Ui">
-                                            <rect key="frame" x="333" y="300" width="35" height="14"/>
-                                            <autoresizingMask key="autoresizingMask"/>
-                                            <textFieldCell key="cell" lineBreakMode="clipping" title="para (" id="P6l-Am-Nyo">
-                                                <font key="font" metaFont="message" size="11"/>
-                                                <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                            </textFieldCell>
-                                        </textField>
-                                        <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="d3V-Cr-VJw">
-                                            <rect key="frame" x="425" y="300" width="35" height="14"/>
-                                            <autoresizingMask key="autoresizingMask"/>
-                                            <textFieldCell key="cell" lineBreakMode="clipping" title="para {" id="BzZ-oR-lKm">
-                                                <font key="font" metaFont="message" size="11"/>
-                                                <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                            </textFieldCell>
-                                        </textField>
-                                        <colorWell fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="SPi-5i-u8i">
-                                            <rect key="frame" x="334" y="275" width="59" height="24"/>
-                                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                            <color key="color" red="0.05813049898" green="0.055541899059999997" blue="1" alpha="1" colorSpace="calibratedRGB"/>
-                                            <connections>
-                                                <action selector="markerParenColorChanged:" target="-2" id="lbN-vM-cfc"/>
-                                            </connections>
-                                        </colorWell>
-                                        <colorWell fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="nyY-eq-Pu3">
-                                            <rect key="frame" x="423" y="275" width="59" height="24"/>
-                                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                            <color key="color" red="0.05813049898" green="0.055541899059999997" blue="1" alpha="1" colorSpace="calibratedRGB"/>
-                                            <connections>
-                                                <action selector="markerCurlyColorChanged:" target="-2" id="I6V-0h-cLH"/>
-                                            </connections>
-                                        </colorWell>
-                                        <colorWell fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="sU5-38-KBN">
-                                            <rect key="frame" x="511" y="275" width="59" height="24"/>
-                                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                            <color key="color" red="0.05813049898" green="0.055541899059999997" blue="1" alpha="1" colorSpace="calibratedRGB"/>
-                                            <connections>
-                                                <action selector="markerSquareColorChanged:" target="-2" id="Asg-qh-i9G"/>
-                                            </connections>
-                                        </colorWell>
-                                        <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="MpQ-oG-9KO">
-                                            <rect key="frame" x="260" y="276" width="54" height="20"/>
-                                            <autoresizingMask key="autoresizingMask"/>
-                                            <textFieldCell key="cell" lineBreakMode="clipping" title="Marcador" id="bwl-5L-7JJ">
-                                                <font key="font" metaFont="message" size="11"/>
-                                                <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                            </textFieldCell>
-                                        </textField>
-                                        <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="IBo-bX-gfp">
-                                            <rect key="frame" x="513" y="300" width="35" height="14"/>
-                                            <autoresizingMask key="autoresizingMask"/>
-                                            <textFieldCell key="cell" lineBreakMode="clipping" title="para [" id="0mh-Yx-srj">
-                                                <font key="font" metaFont="message" size="11"/>
-                                                <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                            </textFieldCell>
-                                        </textField>
                                     </subviews>
                                 </view>
                             </tabViewItem>

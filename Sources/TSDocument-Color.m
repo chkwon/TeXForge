@@ -218,7 +218,6 @@
     
     mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxCommand"];
     self.commandColorAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
-    
     mySyntaxColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"SyntaxMarker"];
     self.markerColorAttribute = [[NSDictionary alloc] initWithObjectsAndKeys:mySyntaxColor, NSForegroundColorAttributeName, nil];
     

@@ -3149,7 +3149,7 @@ DQ
                                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                         <subviews>
                                                             <box fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="S3x-qU-RUF">
-                                                                <rect key="frame" x="-8" y="-15" width="389" height="529"/>
+                                                                <rect key="frame" x="-8" y="4" width="389" height="529"/>
                                                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                                                 <view key="contentView" id="Vrr-bl-kF2">
                                                                     <rect key="frame" x="4" y="5" width="381" height="507"/>
@@ -3705,7 +3705,7 @@ DQ
                                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                         <subviews>
                                                             <box fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mRX-2g-H6p">
-                                                                <rect key="frame" x="-1" y="-2" width="389" height="529"/>
+                                                                <rect key="frame" x="-1" y="2" width="389" height="529"/>
                                                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                                                                 <view key="contentView" id="Miy-Mb-Gjy">
                                                                     <rect key="frame" x="4" y="5" width="381" height="507"/>

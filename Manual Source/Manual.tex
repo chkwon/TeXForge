@@ -3509,12 +3509,7 @@ The Themes portion of Preferences is shown on the next page. On the right are al
 TeXShop is shipped with several themes, including ``LiteTheme'' and ``DarkTheme''. These are the default themes for Lite Mode and Dark Mode. As explained later, there is a way for users to rename or remove Themes known to TeXShop. But TeXShop will always replace ``LiteTheme'' and ``DarkTheme''
 and use them if other required themes are missing.
 
-Gary Gray contributed GLG-Dark for Dark mode. Gray then tweaked this theme, and ended up with a dark theme that was was so my better than mine  that I ended up using it as the default and renaming it DarkTheme. So Gray lost credit, but gained users. Thanks.
-
-There is no distinction between themes for Lite Mode and themes for Dark Mode. Thus nothing prevents a user from setting both Lite Mode  and Dark Mode to the same theme.
-
-
-After editing a theme, push ``Cancel'' or ``OK'' to end a preference session. If ``Cancel'' is pressed, the edited colors will not be saved and the Lite Mode and Dark Mode themes will return to choices before opening the Preference Pane. If ``OK'' is pressed, the edited colors will be saved and Lite Mode and Dark Mode themes will change to their new values.
+Gary Gray contributed GLG-Dark for Dark mode. Gray then tweaked this theme, and ended up with a dark theme that was so my better than mine  that I ended up using it as the default and renaming it DarkTheme. So Gray lost credit, but gained users. Thanks.
 
 \begin{figure}[htbp] %  figure placement: here, top, bottom, or page
    \centering
@@ -3523,8 +3518,12 @@ After editing a theme, push ``Cancel'' or ``OK'' to end a preference session. If
    \label{fig:Theme}
 \end{figure}
 
+There is no distinction between themes for Lite Mode and themes for Dark Mode. Thus nothing prevents a user from setting both Lite Mode  and Dark Mode to the same theme.
 
-\newpage
+
+After editing a theme, push ``Cancel'' or ``OK'' to end a preference session. If ``Cancel'' is pressed, the edited colors will not be saved and the Lite Mode and Dark Mode themes will return to choices before opening the Preference Pane. If ``OK'' is pressed, the edited colors will be saved and Lite Mode or Dark Mode themes will change to their new values.
+
+
 Some users may want to edit several different themes during a session. When these users are finished editing their first theme, they should press ``Save Edited Theme.'' This will save the changes for that  theme {\em permanently}, even if the entire session is ended using the ``Cancel'' button. Repeat the process for other themes. 
 
 To create a new theme, first change ``Theme to Edit'' to obtain reasonable starting colors for your new theme. Then push ``Create New Theme'' and fill in the resulting dialog with a title for this theme. Do not use spaces in this title. The new theme will become the ``Theme to Edit'' and you can begin changing colors.
@@ -3540,9 +3539,9 @@ Each is a real number between zero and one.
 It is possible to directly edit this file in TeXShop, but there is a slight complication. When TeXShop
 saves the edited file, the new version does not quite meet required standards for a plist file, so TeXShop cannot read the file. I haven't traced what goes wrong because there is an easy solution. If you have downloaded Apple's free program XCode, then .plist files also open in XCode. These files can be edited in XCode, and .plist files saved by XCode have the correct structure. Moreover, if you edit a plist file in TeXShop, you can later open it and then close it in XCode, and now it will have exactly the right structure.
 
-You can  remove Themes you no longer use by removing their plist files from the Themes folder. Avoid removing themes being used for Lite Mode or Dark Mode (although TeXShop should react gracefully when it runs into this situation). As explained earlier, the themes LiteTheme and DarkTheme will be recreated if they are removed.
+You can  remove Themes you no longer use by removing their plist files from the Themes folder. Avoid removing themes being used for Lite Mode or Dark Mode (although TeXShop should react gracefully when it runs into this situation). As explained earlier, the themes LiteTheme and DarkTheme will be recreated if they are removed. 
 
-When a theme is selected for editing, TeXShop colors will temporarily be reset to those colors. Revising colors is then interactive; as soon as colors change in Preferences, they will also change in TeXShop's Source and Preview windows.
+When a theme is selected for editing, TeXShop colors will temporarily be reset to those colors. Revising colors is then interactive; as soon as colors change in Preferences, they will also change in TeXShop's Source and Preview windows. But the new colors only become permanent after you press ``OK''.
 
 Finally we explain the actual color choices. At the top of the Theme Panel, the Foreground and Background colors can be set for the Source, Console, and Log Windows, and the Background color can be set for the Preview Window. For each of these except the Log window, transparency can also be set. In color theory, alpha value sets transparency.  Transparency settings bring up a full Color Well, but the colors of these items are ignored and only the alpha values of the choices matter. 
 

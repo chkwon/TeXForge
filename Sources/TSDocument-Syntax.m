@@ -113,7 +113,7 @@ static BOOL isValidOrdinaryTeXCommandChar(NSInteger c)
     NSRange         charRange;
     BOOL            notDone;
     NSInteger       theChar;
-   
+// FIX markerColorAttribute --> markerColorCurlyAttribute
     count = 1;
     charRange.location = *theLocation;
     charRange.length = 1;
@@ -570,6 +570,7 @@ static BOOL isValidOrdinaryTeXCommandChar(NSInteger c)
                     count = 1;
                     charRange.location = location;
                     charRange.length = 1;
+//FIX? markerColorAttribute -> markerColorCurlyAttribute
                     [layoutManager addTemporaryAttributes:self.markerColorAttribute forCharacterRange:charRange];
                     location++;
                     colorRange.location = location;
@@ -587,6 +588,7 @@ static BOOL isValidOrdinaryTeXCommandChar(NSInteger c)
                             [layoutManager addTemporaryAttributes:self.footnoteColorAttribute forCharacterRange:colorRange];
                             charRange.location = location;
                             charRange.length = 1;
+// FIX markerColorAttribute -> markerColorCurlyAttribute
                             [layoutManager addTemporaryAttributes:self.markerColorAttribute forCharacterRange:charRange];
                         }
                         location++;
@@ -604,6 +606,7 @@ static BOOL isValidOrdinaryTeXCommandChar(NSInteger c)
                 
                 if ((location < aLineEnd) && ([textString characterAtIndex:location] == '{'))
                 {
+// FIX markerColorAttribute --> markerColorCurlyAttribute
                     count = 1;
                     charRange.location = location;
                     charRange.length = 1;
@@ -669,7 +672,8 @@ static BOOL isValidOrdinaryTeXCommandChar(NSInteger c)
                         // The six special characters { } [ ] & $ get an extra color.
                         specialRange.location = spellLocation;
                         specialRange.length = 1;
-                        [layoutManager addTemporaryAttributes:self.markerColorAttribute forCharacterRange:specialRange];
+// FIX Key Moment markerColorAttribute -> markerColorCurlyAttribute
+                        [layoutManager addTemporaryAttributes:self.markerColorCurlyAttribute forCharacterRange:specialRange];
                     }
                     
                     spellLocation++;
@@ -699,7 +703,8 @@ static BOOL isValidOrdinaryTeXCommandChar(NSInteger c)
                         // The six special characters { } [ ] & $ get an extra color.
                         specialRange.location = spellLocation;
                         specialRange.length = 1;
-                        [layoutManager addTemporaryAttributes:self.markerColorAttribute forCharacterRange:specialRange];
+// // FIX Key Moment markerColorAttribute -> markerColorCurlyAttribute
+                        [layoutManager addTemporaryAttributes:self.markerColorCurlyAttribute forCharacterRange:specialRange];
                     }
                     
                     spellLocation++;
