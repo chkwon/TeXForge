@@ -18,7 +18,7 @@
                 <menuItem title="TeXshop" id="56">
                     <menu key="submenu" title="TeXshop" systemMenu="apple" id="57">
                         <items>
-                            <menuItem title="Sobre o TeXShop..." id="58">
+                            <menuItem title="Sobre o TeXForge..." id="58">
                                 <connections>
                                     <action selector="orderFrontStandardAboutPanel:" target="-2" id="145"/>
                                 </connections>
@@ -42,14 +42,14 @@
                                     <action selector="displayGPLLicense:" target="671" id="ymQ-R5-dij"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Abrir pasta ~/Library/TeXShop" id="kyA-1c-oKX">
+                            <menuItem title="Abrir pasta ~/Library/TeXForge" id="kyA-1c-oKX">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="GotoLibraryTeXShop:" target="-1" id="ati-yJ-XRB"/>
+                                    <action selector="GotoLibraryTeXForge:" target="-1" id="ati-yJ-XRB"/>
                                 </connections>
                             </menuItem>
                             <menuItem id="JOS-h6-tfR">
-                                <string key="title">Fazer do TeXShop o editor TeX padrão
+                                <string key="title">Fazer do TeXForge o editor TeX padrão
 </string>
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
@@ -65,7 +65,7 @@
                             <menuItem isSeparatorItem="YES" id="401">
                                 <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                             </menuItem>
-                            <menuItem title="Esconder o TeXShop" keyEquivalent="h" id="228">
+                            <menuItem title="Esconder o TeXForge" keyEquivalent="h" id="228">
                                 <connections>
                                     <action selector="hide:" target="-2" id="229"/>
                                 </connections>
@@ -84,7 +84,7 @@
                             <menuItem isSeparatorItem="YES" id="224">
                                 <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                             </menuItem>
-                            <menuItem title="Sair do TeXShop" keyEquivalent="q" id="226">
+                            <menuItem title="Sair do TeXForge" keyEquivalent="q" id="226">
                                 <connections>
                                     <action selector="terminate:" target="-1" id="227"/>
                                 </connections>
@@ -1277,13 +1277,13 @@
                             <menuItem isSeparatorItem="YES" id="829"/>
                             <menuItem title="Primeiros passos com o TexShop" id="663">
                                 <connections>
-                                    <action selector="displayGettingStartedTeXShop:" target="671" id="675"/>
+                                    <action selector="displayGettingStartedTeXForge:" target="671" id="675"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop Demos" id="664">
-                                <menu key="submenu" title="TeXShop Demos" id="665"/>
+                            <menuItem title="TeXForge Demos" id="664">
+                                <menu key="submenu" title="TeXForge Demos" id="665"/>
                             </menuItem>
-                            <menuItem title="Manual do TeXShop" id="DB2-GU-7aa">
+                            <menuItem title="Manual do TeXForge" id="DB2-GU-7aa">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayManual:" target="671" id="gyt-Xq-2l7"/>
@@ -1296,7 +1296,7 @@
                                     <action selector="displayHTMLHelp:" target="671" id="JG4-wX-RRq"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Ajuda do TeXShop..." keyEquivalent="?" id="138">
+                            <menuItem title="Ajuda do TeXForge..." keyEquivalent="?" id="138">
                                 <connections>
                                     <action selector="showHelp:" target="-1" id="144"/>
                                 </connections>
@@ -1307,16 +1307,16 @@
                                     <action selector="displayFileEncoding:" target="671" id="58U-iN-z68"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop Dicas e macetes " id="893">
+                            <menuItem title="TeXForge Dicas e macetes " id="893">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayTipsandTricks:" target="671" id="894"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Características do TeXShop" id="TYX-2p-V5Z">
+                            <menuItem title="Características do TeXForge" id="TYX-2p-V5Z">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="displayTeXShopConfusion:" target="671" id="qLv-HC-5ko"/>
+                                    <action selector="displayTeXForgeConfusion:" target="671" id="qLv-HC-5ko"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Linhas Especiais e Preferências Ocultas" id="cXe-ak-NvY">
@@ -1331,7 +1331,7 @@
                                     <action selector="displayRecentTeXFonts:" target="671" id="LuS-Ic-nfV"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Notas sobre o Applescript no TeXShop" id="iIs-qE-f8C">
+                            <menuItem title="Notas sobre o Applescript no TeXForge" id="iIs-qE-f8C">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayNotesonApplescript:" target="671" id="mYE-rM-StL"/>

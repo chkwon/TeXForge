@@ -552,14 +552,14 @@ static NSString * const kCopilotTokenExpiryKey = @"CopilotGitHubTokenExpiry";
 
 + (NSString *)_keychainValueForService:(NSString *)service
 {
-    NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/TeXShop/.copilot_credentials.plist"];
+    NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/TeXForge/.copilot_credentials.plist"];
     NSDictionary *creds = [NSDictionary dictionaryWithContentsOfFile:path];
     return creds[service];
 }
 
 + (void)_setKeychainValue:(NSString *)value forService:(NSString *)service
 {
-    NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/TeXShop/.copilot_credentials.plist"];
+    NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/TeXForge/.copilot_credentials.plist"];
     NSString *dir = [path stringByDeletingLastPathComponent];
     NSFileManager *fm = [NSFileManager defaultManager];
 

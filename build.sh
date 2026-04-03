@@ -11,8 +11,8 @@ echo "Building TeXForge ($CONFIG)..."
 # xcodebuild will fail at the final CodeSign step because macOS auto-sets
 # FinderInfo on .nib/.rtfd package directories. We let it fail, then strip
 # extended attributes and re-sign manually below.
-xcodebuild -project "$PROJECT_DIR/TeXShop.xcodeproj" \
-    -scheme TeXShop \
+xcodebuild -project "$PROJECT_DIR/TeXForge.xcodeproj" \
+    -scheme TeXForge \
     -configuration "$CONFIG" \
     build \
     SYMROOT="$PROJECT_DIR/build" \
@@ -30,7 +30,7 @@ xattr -rc "$APP"
 
 # Re-sign with --deep (signs all nested code in one pass)
 codesign --force --deep --sign - \
-    --entitlements "$PROJECT_DIR/TeXShop.entitlements" \
+    --entitlements "$PROJECT_DIR/TeXForge.entitlements" \
     "$APP"
 
 codesign --verify --deep "$APP"

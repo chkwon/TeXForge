@@ -182,7 +182,7 @@
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
-        <window title="TeXShop Einstellungen" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="PrefPane" animationBehavior="default" id="5" userLabel="Preferences">
+        <window title="TeXForge Einstellungen" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="PrefPane" animationBehavior="default" id="5" userLabel="Preferences">
             <windowStyleMask key="styleMask" titled="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="267" y="174" width="707" height="633"/>
@@ -2433,7 +2433,7 @@ DQ
                                                                     <menuItem title="2" tag="2" id="436"/>
                                                                     <menuItem title="3" tag="3" id="441"/>
                                                                     <menuItem title="4" tag="4" id="427"/>
-                                                                    <menuItem title="TeXShop Einstellungen" tag="5" id="431"/>
+                                                                    <menuItem title="TeXForge Einstellungen" tag="5" id="431"/>
                                                                 </items>
                                                             </menu>
                                                         </popUpButtonCell>

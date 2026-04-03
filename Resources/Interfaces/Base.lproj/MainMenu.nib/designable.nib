@@ -42,10 +42,10 @@
                                     <action selector="displayGPLLicense:" target="705" id="Sfo-E0-n4P"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Open ~/Library/TeXShop" id="fW5-xU-4NF">
+                            <menuItem title="Open ~/Library/TeXForge" id="fW5-xU-4NF">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="GotoLibraryTeXShop:" target="-1" id="XAG-7V-lmu"/>
+                                    <action selector="GotoLibraryTeXForge:" target="-1" id="XAG-7V-lmu"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Select TeXForge as Default TeX Editor" id="WeF-2f-t2s">
@@ -1272,7 +1272,7 @@
                             <menuItem isSeparatorItem="YES" id="yHb-bv-k2o"/>
                             <menuItem title="First Steps with TeXForge" id="698">
                                 <connections>
-                                    <action selector="displayGettingStartedTeXShop:" target="705" id="710"/>
+                                    <action selector="displayGettingStartedTeXForge:" target="705" id="710"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="TeXForge Demos" id="699">
@@ -1311,7 +1311,7 @@
                             <menuItem title="TeXForge Feature Confusion" id="XZO-tS-xix">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="displayTeXShopConfusion:" target="705" id="qEm-UL-DCt"/>
+                                    <action selector="displayTeXForgeConfusion:" target="705" id="qEm-UL-DCt"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Comment Lines and Hidden Preferences" id="A3v-6c-2F4">

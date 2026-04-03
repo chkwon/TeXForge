@@ -19,7 +19,7 @@
 
 }
 
-- (IBAction)displayGettingStartedTeXShop:sender;
+- (IBAction)displayGettingStartedTeXForge:sender;
 - (IBAction)displayManual:sender;
 - (IBAction)displayGettingStartedLatex:sender;
 - (IBAction)displayGettingStartedConTeXt:sender;
@@ -28,7 +28,7 @@
 - (IBAction)displayStyleFile:sender;
 - (IBAction)displayFileEncoding:sender;
 - (IBAction)displayTipsandTricks:sender;
-- (IBAction)displayTeXShopConfusion:sender;
+- (IBAction)displayTeXForgeConfusion:sender;
 - (IBAction)displayNotesonApplescript:sender;
 - (IBAction)displayRecentTeXFonts:sender;
 - (IBAction)displayGPLLicense:sender;

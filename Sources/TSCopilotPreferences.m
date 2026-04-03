@@ -92,7 +92,7 @@ static NSString * const kCredentialServicePrefix = @"com.TeXForge.Copilot.";
 
 + (NSString *)_credentialsPlistPath
 {
-    NSString *dir = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/TeXShop"];
+    NSString *dir = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/TeXForge"];
     return [dir stringByAppendingPathComponent:@".copilot_credentials.plist"];
 }
 

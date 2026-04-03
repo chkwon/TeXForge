@@ -67,9 +67,9 @@
 }
 
 
-- (IBAction)GotoLibraryTeXShop: (id)sender;
+- (IBAction)GotoLibraryTeXForge: (id)sender;
 {
-    NSString *myString = @"~/Library/TeXShop";
+    NSString *myString = @"~/Library/TeXForge";
     myString = [myString stringByExpandingTildeInPath];
     [[NSWorkspace sharedWorkspace] openFile:myString withApplication: @"Finder"];
 }

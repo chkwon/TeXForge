@@ -276,36 +276,36 @@ NSString *ExtraCommandsNotToCheckParametersKey = @"ExtraCommandsNotToCheckParame
 
 // Paths
 NSString *DesktopPath = @"~/Desktop/";
-NSString *MoviesPath = @"~/Library/TeXShop/Movies";
-NSString *DocumentsPath = @"~/Library/TeXShop/Documents";
-NSString *TeXShopPath = @"~/Library/TeXShop";
-NSString *TexTemplatePath = @"~/Library/TeXShop/Templates";
-NSString *TexTemplateMorePath = @"~/Library/TeXShop/Templates/More";
-NSString *StationeryPath = @"~/Library/TeXShop/Stationery";
-NSString *LatexPanelPath = @"~/Library/TeXShop/LatexPanel";
-NSString *MatrixPanelPath = @"~/Library/TeXShop/MatrixPanel";
-NSString *BinaryPath = @"~/Library/TeXShop/bin";
-NSString *EnginePath = @"~/Library/TeXShop/Engines";
-NSString *EngineInactivePath = @"~/Library/TeXShop/Engines/Inactive";
-NSString *HTMLHelpPath = @"~/Library/TeXShop/HTML";
-NSString *HTMLInactivePath = @"~/Library/TeXShop/HTML/Inactive";
-NSString *ExternalEditorScriptsPath = @"~/Library/TeXShop/ExternalEditorScripts";
-NSString *ScriptsPath = @"~/Library/TeXShop/Scripts";
-NSString *NewPath = @"~/Library/TeXShop/New";
-NSString *AutoCompletionPath = @"~/Library/TeXShop/Keyboard";
-NSString *MenuShortcutsPath = @"~/Library/TeXShop/Menus";
-NSString *MacrosPath = @"~/Library/TeXShop/Macros";
-NSString *CommandCompletionFolderPath = @"~/Library/TeXShop/CommandCompletion";
+NSString *MoviesPath = @"~/Library/TeXForge/Movies";
+NSString *DocumentsPath = @"~/Library/TeXForge/Documents";
+NSString *TeXShopPath = @"~/Library/TeXForge";
+NSString *TexTemplatePath = @"~/Library/TeXForge/Templates";
+NSString *TexTemplateMorePath = @"~/Library/TeXForge/Templates/More";
+NSString *StationeryPath = @"~/Library/TeXForge/Stationery";
+NSString *LatexPanelPath = @"~/Library/TeXForge/LatexPanel";
+NSString *MatrixPanelPath = @"~/Library/TeXForge/MatrixPanel";
+NSString *BinaryPath = @"~/Library/TeXForge/bin";
+NSString *EnginePath = @"~/Library/TeXForge/Engines";
+NSString *EngineInactivePath = @"~/Library/TeXForge/Engines/Inactive";
+NSString *HTMLHelpPath = @"~/Library/TeXForge/HTML";
+NSString *HTMLInactivePath = @"~/Library/TeXForge/HTML/Inactive";
+NSString *ExternalEditorScriptsPath = @"~/Library/TeXForge/ExternalEditorScripts";
+NSString *ScriptsPath = @"~/Library/TeXForge/Scripts";
+NSString *NewPath = @"~/Library/TeXForge/New";
+NSString *AutoCompletionPath = @"~/Library/TeXForge/Keyboard";
+NSString *MenuShortcutsPath = @"~/Library/TeXForge/Menus";
+NSString *MacrosPath = @"~/Library/TeXForge/Macros";
+NSString *CommandCompletionFolderPath = @"~/Library/TeXForge/CommandCompletion";
 // CNSString *CommandCompletionPath = nil;
-NSString *CommandCompletionPathRegular = @"~/Library/TeXShop/CommandCompletion/CommandCompletion.txt";
-NSString *CommandCompletionPathXML = @"~/Library/TeXShop/CommandCompletion/CommandCompletionXML.txt";
+NSString *CommandCompletionPathRegular = @"~/Library/TeXForge/CommandCompletion/CommandCompletion.txt";
+NSString *CommandCompletionPathXML = @"~/Library/TeXForge/CommandCompletion/CommandCompletionXML.txt";
 
 // TODO: Shouldn't we use  NSTemporaryDirectory() (or a path based on it) rather than the following three paths?
-NSString *TempPath = @"/tmp/TeXShop_Applescripts";
-NSString *TempOutputKey = @"/tmp/TeXShop_Output";
-NSString *DraggedImageFolderPath = @"~/Library/TeXShop/DraggedImages";
-NSString *DraggedImagePath = @"~/Library/TeXShop/DraggedImages/texshop_image"; // mitsu 1.29 drag & drop
-NSString *ColorPath = @"~/Library/TeXShop/Themes";
+NSString *TempPath = @"/tmp/TeXForge_Applescripts";
+NSString *TempOutputKey = @"/tmp/TeXForge_Output";
+NSString *DraggedImageFolderPath = @"~/Library/TeXForge/DraggedImages";
+NSString *DraggedImagePath = @"~/Library/TeXForge/DraggedImages/texshop_image"; // mitsu 1.29 drag & drop
+NSString *ColorPath = @"~/Library/TeXForge/Themes";
 
 // Notifications
 NSString *SyntaxColoringChangedNotification = @"SyntaxColoringChangedNotification";
@@ -441,9 +441,9 @@ NSColor *PreviewDirectSyncColor = nil;
 NSInteger	g_macroType;	// FIXME: get rid of this
 
 /*
-NSString *placeholderString = @"¥";
-NSString *startcommentString = @"¥Ü";
-NSString *endcommentString = @"Ý";
+NSString *placeholderString = @"ï¿½";
+NSString *startcommentString = @"ï¿½ï¿½";
+NSString *endcommentString = @"ï¿½";
 */
 NSString *placeholderString;
 NSString *startcommentString;

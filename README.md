@@ -1,26 +1,48 @@
 # TeXForge
 
-TeXForge is a macOS LaTeX editor forked from [TeXShop](https://pages.uoregon.edu/koch/texshop/texshop.html), adding inline AI code completion (Copilot-style ghost text) for LaTeX editing.
+**TeXForge** is a fork of [TeXShop](https://pages.uoregon.edu/koch/texshop/texshop.html) -- the classic macOS LaTeX editor by Richard Koch. TeXForge inherits everything from TeXShop (typesetting, PDF preview, SyncTeX, macros, multi-file projects, etc.) and adds features aimed at a more modern editing experience.
 
-## What TeXForge Adds
+TeXForge is a personal project and is not affiliated with or endorsed by the original TeXShop project.
 
-TeXForge builds on TeXShop -- the classic macOS TeX/LaTeX editor by Richard Koch -- and adds AI-powered inline completions from multiple providers:
+## What TeXForge adds over TeXShop
+
+### AI-powered inline completion
+
+TeXForge brings Copilot-style ghost text to LaTeX editing. Suggestions appear as a semi-transparent overlay and can be accepted with Tab. Three providers are supported:
 
 - **Ollama** -- local, private completions via any Ollama-hosted model
-- **Claude API** -- Anthropic's Claude for high-quality LaTeX suggestions
-- **GitHub Copilot** -- GitHub Copilot via OAuth device flow and SSE streaming
+- **Claude API** -- Anthropic's Claude
+- **GitHub Copilot** -- via OAuth device flow and SSE streaming
 
-Suggestions appear as ghost text (semi-transparent overlay) and can be accepted with Tab, similar to code editors with Copilot integration.
+### Modern keyboard shortcuts
+
+TeXForge adds shortcuts familiar from VS Code and other editors, while keeping all original TeXShop shortcuts:
+
+| Action | TeXShop | TeXForge (added) |
+|--------|---------|------------------|
+| Indent | Cmd+] | Tab (with selection) |
+| Unindent | Cmd+[ | Shift+Tab (with selection) |
+| Comment/Uncomment | Cmd+Shift+] / Cmd+Shift+[ | Cmd+/ (toggle) |
+
+### Updated defaults
+
+- **Theme**: Solarized Lite (instead of LiteTheme)
+- **Font**: SF Mono Regular 12pt (instead of system user font)
+- **Icon**: Amber/copper to visually distinguish from TeXShop
 
 ## Differences from TeXShop
 
-| Feature | TeXShop | TeXForge |
-|---------|---------|----------|
-| Inline AI completion | No | Yes (Ollama, Claude, GitHub Copilot) |
+| | TeXShop | TeXForge |
+|---|---------|----------|
+| AI inline completion | -- | Ollama, Claude, GitHub Copilot |
+| Tab/Shift+Tab indent | -- | Yes (when text selected) |
+| Cmd+/ toggle comment | -- | Yes |
+| Default theme | LiteTheme | Solarized Lite |
+| Default font | System user font | SF Mono Regular 12pt |
 | App icon | Blue | Amber/Copper |
 | Bundle ID | `edu.uoregon.TeXShop` | `com.chkwon.TeXForge` |
 
-TeXForge is a personal fork and is not affiliated with or endorsed by the original TeXShop project.
+Everything else -- typesetting engines, PDF viewer, SyncTeX, macro system, multi-language support, OgreKit find/replace -- is inherited from the original TeXShop codebase.
 
 ## Building
 
@@ -40,14 +62,9 @@ The built app is at `build/Debug/TeXForge.app` or `build/Release/TeXForge.app`.
 
 ### Xcode
 
-Open `TeXShop.xcodeproj` and build with Cmd+B.
+Open `TeXForge.xcodeproj` and build with Cmd+B.
 
 No Apple Developer account is needed -- the build uses ad-hoc code signing.
-
-## Branching Strategy
-
-- **`master`** -- Tracks upstream TeXShop. Never commit fork changes here.
-- **`forge`** -- Fork branch with TeXForge customizations. Merge `master` into `forge` to pick up upstream updates.
 
 ## License
 

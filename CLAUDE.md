@@ -4,17 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TeXForge is a personal fork of TeXShop — a macOS LaTeX/TeX editor with integrated PDF preview, written in Objective-C. It is a document-based Cocoa application (NSDocument architecture). The fork adds inline AI code completion (Copilot-style) via Claude API or local Ollama. Licensed under GNU GPL v2.
+TeXForge is a personal fork of [TeXShop](https://pages.uoregon.edu/koch/texshop/texshop.html) — a macOS LaTeX/TeX editor with integrated PDF preview, written in Objective-C. It is a document-based Cocoa application (NSDocument architecture). Licensed under GNU GPL v2.
 
-## Branching Strategy
+### What TeXForge adds over TeXShop
 
-- **`master`** — Tracks upstream TeXShop. Never commit fork changes here.
-- **`forge`** — Fork branch with TeXForge customizations. Merge `master` into `forge` to pick up upstream updates.
+- **AI inline completion** — Copilot-style ghost text via Ollama (local), Claude API, or GitHub Copilot
+- **Modern keyboard shortcuts** — Tab/Shift+Tab for indent/unindent (with selection), Cmd+/ to toggle comment; original TeXShop shortcuts (Cmd+]/[, Cmd+Shift+]/[) are preserved
+- **Updated defaults** — Solarized Lite theme, SF Mono Regular 12pt font, amber/copper icon
+
+Everything else (typesetting, PDF viewer, SyncTeX, macros, multi-file projects, localization) is inherited from the original TeXShop codebase.
 
 ## Building
 
 - **CLI (recommended):** `./build.sh` (Debug) or `./build.sh Release`
-- **Xcode:** Open `TeXShop.xcodeproj`, build with Cmd+B
+- **Xcode:** Open `TeXForge.xcodeproj`, build with Cmd+B
 - No package managers — all dependencies are vendored in `3rdparty/`
 - No test targets; testing is manual through the application UI
 - No Apple Developer account needed — uses ad-hoc code signing (`CODE_SIGN_IDENTITY=-`)
@@ -44,7 +47,7 @@ The app follows the standard `NSDocumentController` → `NSDocument` → `NSWind
 | Typesetting | `TSDocument-Jobs` | Launches TeX engines as `NSTask`; engine selected via `% !TEX program=` magic comments or preferences |
 | SyncTeX | `TSDocument-SyncTeX`, `synctex_parser.h/c` | Forward/backward sync between source and PDF |
 | Preferences | `TSPreferences` (~2.9K lines), `TSPreferences-Color` | Engine paths, colors, fonts, themes (`DarkTheme.plist`, `LiteTheme.plist`) |
-| Macros | `TSMacroMenuController` (singleton), `TSMacroTreeNode`, `TSMacroEditor` | Hierarchical macro system loaded from `~/Library/TeXShop/Macros/Macros.plist` |
+| Macros | `TSMacroMenuController` (singleton), `TSMacroTreeNode`, `TSMacroEditor` | Hierarchical macro system loaded from `~/Library/TeXForge/Macros/Macros.plist` |
 | Toolbar | `TSToolbarController` | Typeset buttons, program selection |
 | Window Mgmt | `TSWindowManager` (singleton), `TSTextEditorWindow`, `TSPreviewWindow`, `TSConsoleWindow` | Multi-window coordination |
 | Copilot | `TSCopilotManager`, `TSCopilotAPIClient`, `TSCopilotOverlayView`, `TSTextView+Copilot` | Inline AI completion integration |

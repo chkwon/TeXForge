@@ -375,7 +375,7 @@
 		40E81A6929A0788D0014D82A /* Manual.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 40E81A6729A0788D0014D82A /* Manual.pdf */; };
 		40E94AFA07ECF1F500782DE9 /* TextTool.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 40E94AF907ECF1F500782DE9 /* TextTool.tiff */; };
 		40E994552C4441710044A02F /* tools.png in Resources */ = {isa = PBXBuildFile; fileRef = 40E994542C4441710044A02F /* tools.png */; };
-		40F1D6122C4D41D600735993 /* Manual.log in Resources */ = {isa = PBXBuildFile; fileRef = 40F1D6102C4D41D600735993 /* Manual.log */; };
+
 		40F80CAE1FAD3A2F00377616 /* Changes.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 40F80CAC1FAD3A2E00377616 /* Changes.pdf */; };
 		40FFD6F82AB63CEF003E4D12 /* gstestwrap in Resources */ = {isa = PBXBuildFile; fileRef = 40FFD6F72AB63CEF003E4D12 /* gstestwrap */; };
 		520C2EEB08AE92850010B1F8 /* TSDocument-Jobs.m in Sources */ = {isa = PBXBuildFile; fileRef = 520C2EEA08AE92850010B1F8 /* TSDocument-Jobs.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
@@ -860,7 +860,7 @@
 		40BC8E881922D7E900F3EF2D /* IconsTeX.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = IconsTeX.icns; sourceTree = SOURCE_ROOT; };
 		40BCDA501FF9589100AAC575 /* TSWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSWindowController.h; sourceTree = "<group>"; };
 		40BCDA511FF9589100AAC575 /* TSWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSWindowController.m; sourceTree = "<group>"; };
-		40C0FF2E217AA3D100DF8F67 /* TeXShop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TeXShop.entitlements; sourceTree = "<group>"; };
+		40C0FF2E217AA3D100DF8F67 /* TeXForge.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TeXForge.entitlements; sourceTree = "<group>"; };
 		40C889DA0F1A852E00B5B8A9 /* dsa_pub.pem */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = dsa_pub.pem; sourceTree = "<group>"; };
 		40CACEAD25CF14870021A289 /* pt */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = pt; path = pt.lproj/TeXLiveDocumentation.pdf; sourceTree = "<group>"; };
 		40CBED041D3A9C0600415A91 /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = System/Library/Frameworks/AVKit.framework; sourceTree = SDKROOT; };
@@ -906,7 +906,7 @@
 		40EB71E50400BE1000000009 /* TSDocumentController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSDocumentController.h; sourceTree = "<group>"; };
 		40EB71E60400BE1000000009 /* TSDocumentController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSDocumentController.m; sourceTree = "<group>"; };
 		40EC12140C66C4BE00B9A448 /* QTKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QTKit.framework; path = /System/Library/Frameworks/QTKit.framework; sourceTree = "<absolute>"; };
-		40F1D6112C4D41D600735993 /* Base */ = {isa = PBXFileReference; lastKnownFileType = text; name = Base; path = Base.lproj/Manual.log; sourceTree = "<group>"; };
+
 		40FFD6F72AB63CEF003E4D12 /* gstestwrap */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.csh; path = gstestwrap; sourceTree = "<group>"; };
 		520C2EEA08AE92850010B1F8 /* TSDocument-Jobs.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = "TSDocument-Jobs.m"; sourceTree = "<group>"; };
 		520C2EEE08AE984C0010B1F8 /* TSDocument-RootFile.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = "TSDocument-RootFile.m"; sourceTree = "<group>"; };
@@ -1140,7 +1140,7 @@
 				40A03E850F3A47760014104E /* First Steps with Mathematical Typesetting.pdf */,
 				40A03E8A0F3A47860014104E /* First Steps with TeXShop.pdf */,
 				403244B329A037A9000431A1 /* Manual.pdf */,
-				40F1D6102C4D41D600735993 /* Manual.log */,
+
 				40E2117D289761190033BA29 /* SamplePage.html */,
 				40E2117A289761050033BA29 /* READ ME FIRST.pdf */,
 				40E21177289760EE0033BA29 /* more.jpg */,
@@ -1204,7 +1204,7 @@
 			children = (
 				40E81A6729A0788D0014D82A /* Manual.pdf */,
 				4020276425D06FD70039F253 /* TeX.mdimporter */,
-				40C0FF2E217AA3D100DF8F67 /* TeXShop.entitlements */,
+				40C0FF2E217AA3D100DF8F67 /* TeXForge.entitlements */,
 				4020276325D06FAA0039F253 /* TeX.mdimporter */,
 				5288888E089D06B50095E82D /* Sources */,
 				2A37F4B8FDCFA73011CA2CEA /* Resources */,
@@ -1715,7 +1715,7 @@
 /* Begin PBXNativeTarget section */
 		407880610519249A006979EA /* TeXShop */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5288880A089D023A0095E82D /* Build configuration list for PBXNativeTarget "TeXShop" */;
+			buildConfigurationList = 5288880A089D023A0095E82D /* Build configuration list for PBXNativeTarget "TeXForge" */;
 			buildPhases = (
 				407880620519249A006979EA /* Headers */,
 				4078807C0519249A006979EA /* Resources */,
@@ -1731,7 +1731,7 @@
 			);
 			dependencies = (
 			);
-			name = TeXShop;
+			name = TeXForge;
 			productInstallPath = "$(HOME)/Applications";
 			productName = TeXForge;
 			productReference = 407881970519249A006979EA /* TeXShop.app */;
@@ -1970,7 +1970,7 @@
 				400F119C21B8721A00EAEAA0 /* UpdateAction.png in Resources */,
 				40D1F2CC06040BCF00087115 /* mat01.tiff in Resources */,
 				40D1F2CD06040BCF00087115 /* mat02.tiff in Resources */,
-				40F1D6122C4D41D600735993 /* Manual.log in Resources */,
+
 				40658EEB07EBD7E70088F777 /* DrawerToggleToolbarImage.tiff in Resources */,
 				40E94AFA07ECF1F500782DE9 /* TextTool.tiff in Resources */,
 				529B9B73089D8287006CC11B /* BackAdorn.tif in Resources */,
@@ -2434,14 +2434,6 @@
 			name = Manual.pdf;
 			sourceTree = "<group>";
 		};
-		40F1D6102C4D41D600735993 /* Manual.log */ = {
-			isa = PBXVariantGroup;
-			children = (
-				40F1D6112C4D41D600735993 /* Base */,
-			);
-			name = Manual.log;
-			sourceTree = "<group>";
-		};
 		40F80CAC1FAD3A2E00377616 /* Changes.pdf */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -2649,7 +2641,7 @@
 			buildSettings = {
 				BUNDLE_VERSION = 3.14;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_ENTITLEMENTS = TeXShop.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TeXForge.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -2696,7 +2688,7 @@
 			buildSettings = {
 				BUNDLE_VERSION = 3.14;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_ENTITLEMENTS = TeXShop.entitlements;
+				CODE_SIGN_ENTITLEMENTS = TeXForge.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -2841,7 +2833,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		5288880A089D023A0095E82D /* Build configuration list for PBXNativeTarget "TeXShop" */ = {
+		5288880A089D023A0095E82D /* Build configuration list for PBXNativeTarget "TeXForge" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5288880B089D023A0095E82D /* Debug */,
