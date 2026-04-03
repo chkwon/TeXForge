@@ -988,9 +988,9 @@
     unichar smallgreater = 0x203A;
     
     /*
-    NSString *placeholderString = @"¥";
-    NSString *startcommentString = @"¥Ü";
-    NSString *endcommentString = @"Ý";
+    NSString *placeholderString = @"ï¿½";
+    NSString *startcommentString = @"ï¿½ï¿½";
+    NSString *endcommentString = @"ï¿½";
     */
 
     
@@ -1202,7 +1202,7 @@
 
 	
 	NSMenu *texshopDemosMenu = [[helpMenu itemWithTitle:
-					NSLocalizedString(@"TeXShop Demos", @"TeXShop Demos")] submenu];
+					NSLocalizedString(@"TeXForge Demos", @"TeXForge Demos")] submenu];
 	
 	if (!texshopDemosMenu)
 		return;

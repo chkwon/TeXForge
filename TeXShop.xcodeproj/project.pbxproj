@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CC100001A0000000C0F11070 /* TSCopilotPreferences.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000001A0000000C0F11070 /* TSCopilotPreferences.h */; };
+		CC100002A0000000C0F11070 /* TSCopilotPreferences.m in Sources */ = {isa = PBXBuildFile; fileRef = CC000002A0000000C0F11070 /* TSCopilotPreferences.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC100003A0000000C0F11070 /* TSCopilotOverlayView.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000003A0000000C0F11070 /* TSCopilotOverlayView.h */; };
+		CC100004A0000000C0F11070 /* TSCopilotOverlayView.m in Sources */ = {isa = PBXBuildFile; fileRef = CC000004A0000000C0F11070 /* TSCopilotOverlayView.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC100005A0000000C0F11070 /* TSCopilotAPIClient.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000005A0000000C0F11070 /* TSCopilotAPIClient.h */; };
+		CC100006A0000000C0F11070 /* TSCopilotAPIClient.m in Sources */ = {isa = PBXBuildFile; fileRef = CC000006A0000000C0F11070 /* TSCopilotAPIClient.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC100007A0000000C0F11070 /* TSCopilotManager.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000007A0000000C0F11070 /* TSCopilotManager.h */; };
+		CC100008A0000000C0F11070 /* TSCopilotManager.m in Sources */ = {isa = PBXBuildFile; fileRef = CC000008A0000000C0F11070 /* TSCopilotManager.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC100009A0000000C0F11070 /* TSTextView+Copilot.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000009A0000000C0F11070 /* TSTextView+Copilot.h */; };
+		CC10000AA0000000C0F11070 /* TSTextView+Copilot.m in Sources */ = {isa = PBXBuildFile; fileRef = CC00000AA0000000C0F11070 /* TSTextView+Copilot.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC200002A0000000C0F11070 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC200001A0000000C0F11070 /* Security.framework */; };
 		346FA9FD1309961900DAA25D /* TSLayoutManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 346FA9FB1309961900DAA25D /* TSLayoutManager.h */; };
 		346FA9FE1309961900DAA25D /* TSLayoutManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 346FA9FC1309961900DAA25D /* TSLayoutManager.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
 		40008E6B055436A5005D78AB /* mptopdfwrap in Resources */ = {isa = PBXBuildFile; fileRef = 40008E6A055436A5005D78AB /* mptopdfwrap */; };
@@ -1029,6 +1040,17 @@
 		F5ECC3160214673901DF2474 /* texicon.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; path = texicon.tiff; sourceTree = "<group>"; };
 		F5ECC3200214678B01DF2474 /* TSToolbarController.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = TSToolbarController.h; sourceTree = "<group>"; };
 		F5ECC3210214678B01DF2474 /* TSToolbarController.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = TSToolbarController.m; sourceTree = "<group>"; };
+		CC000001A0000000C0F11070 /* TSCopilotPreferences.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSCopilotPreferences.h; sourceTree = "<group>"; };
+		CC000002A0000000C0F11070 /* TSCopilotPreferences.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSCopilotPreferences.m; sourceTree = "<group>"; };
+		CC000003A0000000C0F11070 /* TSCopilotOverlayView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSCopilotOverlayView.h; sourceTree = "<group>"; };
+		CC000004A0000000C0F11070 /* TSCopilotOverlayView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSCopilotOverlayView.m; sourceTree = "<group>"; };
+		CC000005A0000000C0F11070 /* TSCopilotAPIClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSCopilotAPIClient.h; sourceTree = "<group>"; };
+		CC000006A0000000C0F11070 /* TSCopilotAPIClient.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSCopilotAPIClient.m; sourceTree = "<group>"; };
+		CC000007A0000000C0F11070 /* TSCopilotManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSCopilotManager.h; sourceTree = "<group>"; };
+		CC000008A0000000C0F11070 /* TSCopilotManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSCopilotManager.m; sourceTree = "<group>"; };
+		CC000009A0000000C0F11070 /* TSTextView+Copilot.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "TSTextView+Copilot.h"; sourceTree = "<group>"; };
+		CC00000AA0000000C0F11070 /* TSTextView+Copilot.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "TSTextView+Copilot.m"; sourceTree = "<group>"; };
+		CC200001A0000000C0F11070 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1045,6 +1067,7 @@
 				40B42AED1BBB6CC30007C9FB /* Sparkle.framework in Frameworks */,
 				406AB0B0136A5E03009F4D8F /* OgreKit.framework in Frameworks */,
 				40B288D41398A399005C921D /* libz.a in Frameworks */,
+				CC200002A0000000C0F11070 /* Security.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1279,6 +1302,7 @@
 				522BDC370A2A115E007CAB82 /* 3rdparty */,
 				40CBED061D3A9C1000415A91 /* AVFoundation.framework */,
 				40CBED041D3A9C0600415A91 /* AVKit.framework */,
+				CC200001A0000000C0F11070 /* Security.framework */,
 				1058C7A6FEA54F5311CA2CBB /* Linked Frameworks */,
 				1058C7A8FEA54F5311CA2CBB /* Other Frameworks */,
 			);
@@ -1490,6 +1514,16 @@
 				406B626D199934D000C46D2A /* NSText-Extras.m */,
 				40A9D09019AE7D4400FEFAC6 /* TSGlyphPopoverController.h */,
 				40A9D09119AE7D4400FEFAC6 /* TSGlyphPopoverController.m */,
+				CC000001A0000000C0F11070 /* TSCopilotPreferences.h */,
+				CC000002A0000000C0F11070 /* TSCopilotPreferences.m */,
+				CC000003A0000000C0F11070 /* TSCopilotOverlayView.h */,
+				CC000004A0000000C0F11070 /* TSCopilotOverlayView.m */,
+				CC000005A0000000C0F11070 /* TSCopilotAPIClient.h */,
+				CC000006A0000000C0F11070 /* TSCopilotAPIClient.m */,
+				CC000007A0000000C0F11070 /* TSCopilotManager.h */,
+				CC000008A0000000C0F11070 /* TSCopilotManager.m */,
+				CC000009A0000000C0F11070 /* TSTextView+Copilot.h */,
+				CC00000AA0000000C0F11070 /* TSTextView+Copilot.m */,
 			);
 			name = Text;
 			sourceTree = "<group>";
@@ -1668,6 +1702,11 @@
 				40A3575F13CA151400793021 /* TSApplication.h in Headers */,
 				403649E3211BDA810086DDD1 /* TSPreferenceWindow.h in Headers */,
 				403B423A178CB65400E38A72 /* OverView.h in Headers */,
+				CC100001A0000000C0F11070 /* TSCopilotPreferences.h in Headers */,
+				CC100003A0000000C0F11070 /* TSCopilotOverlayView.h in Headers */,
+				CC100005A0000000C0F11070 /* TSCopilotAPIClient.h in Headers */,
+				CC100007A0000000C0F11070 /* TSCopilotManager.h in Headers */,
+				CC100009A0000000C0F11070 /* TSTextView+Copilot.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1694,7 +1733,7 @@
 			);
 			name = TeXShop;
 			productInstallPath = "$(HOME)/Applications";
-			productName = TeXShop;
+			productName = TeXForge;
 			productReference = 407881970519249A006979EA /* TeXShop.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -2083,6 +2122,11 @@
 				403B423B178CB65400E38A72 /* OverView.m in Sources */,
 				40BCDA531FF9589200AAC575 /* TSWindowController.m in Sources */,
 				406B626F199934D000C46D2A /* NSText-Extras.m in Sources */,
+				CC100002A0000000C0F11070 /* TSCopilotPreferences.m in Sources */,
+				CC100004A0000000C0F11070 /* TSCopilotOverlayView.m in Sources */,
+				CC100006A0000000C0F11070 /* TSCopilotAPIClient.m in Sources */,
+				CC100008A0000000C0F11070 /* TSCopilotManager.m in Sources */,
+				CC10000AA0000000C0F11070 /* TSTextView+Copilot.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2606,12 +2650,12 @@
 				BUNDLE_VERSION = 3.14;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_ENTITLEMENTS = TeXShop.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
 				CURRENT_PROJECT_VERSION = 5.57;
-				DEVELOPMENT_TEAM = RBGCY5RJWM;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2635,8 +2679,8 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MARKETING_VERSION = 5.57;
-				PRODUCT_BUNDLE_IDENTIFIER = TeXShop;
-				PRODUCT_NAME = TeXShop;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chkwon.TeXForge;
+				PRODUCT_NAME = TeXForge;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SECTORDER_FLAGS = "";
@@ -2653,12 +2697,12 @@
 				BUNDLE_VERSION = 3.14;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_ENTITLEMENTS = TeXShop.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
 				CURRENT_PROJECT_VERSION = 5.57;
-				DEVELOPMENT_TEAM = RBGCY5RJWM;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2681,8 +2725,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				MARKETING_VERSION = 5.57;
 				ONLY_ACTIVE_ARCH = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = TeXShop;
-				PRODUCT_NAME = TeXShop;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chkwon.TeXForge;
+				PRODUCT_NAME = TeXForge;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SECTORDER_FLAGS = "";
@@ -2716,7 +2760,7 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				DEVELOPMENT_TEAM = RBGCY5RJWM;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -2767,7 +2811,7 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				DEVELOPMENT_TEAM = RBGCY5RJWM;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_NO_COMMON_BLOCKS = YES;

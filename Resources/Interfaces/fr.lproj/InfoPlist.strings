@@ -1,7 +1,7 @@
  /* This is for the localized "short" name in the app menu bar */
-  CFBundleName = "TeXShop";
+  CFBundleName = "TeXForge";
  /* This is for the localized "long" name in Finder, etc. */
-  CFBundleDisplayName = "TeXShop";
+  CFBundleDisplayName = "TeXForge";
  /* Note that the "\n" is used for indicating a new line */
   NSHumanReadableCopyright = "Copyright 2001-2025, Richard Koch \n
   	https://pages.uoregon.edu/koch/texshop/texshop.html";
@@ -63,7 +63,7 @@
   "Any File" = "Any File";
   
   /* Help book localization */
-  CFBundleHelpBookName = "TeXShop Help";
+  CFBundleHelpBookName = "TeXForge Help";
   
  
   
