@@ -80,7 +80,9 @@ static id _sharedInstance = nil;
 	_sharedInstance = self;
 	_undoManager = [[NSUndoManager alloc] init];
 	// setup the default font here so it's defined when we run for the first time.
-	self.documentFont = [NSFont userFontOfSize:12.0];
+	self.documentFont = [NSFont fontWithName:@"SFMono-Regular" size:12.0];
+	if (!self.documentFont)
+		self.documentFont = [NSFont userFixedPitchFontOfSize:12.0];
     self.fontAttributes = nil;
 	// self.consoleFont = [NSFont userFixedPitchedFontOfSize:10.0];
 

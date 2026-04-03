@@ -46,6 +46,13 @@ static id sharedColorSupport = nil;
         reserveDarkPath = [[NSBundle mainBundle] pathForResource:@"DarkTheme" ofType:@"plist"];
         [fileManager copyItemAtPath: reserveDarkPath toPath: darkColorPath error: nil];
     }
+    NSString* solarizedLitePath = [[newColorPath stringByAppendingString:@"/"] stringByAppendingString: @"SolarizedLite.plist"];
+    if (! [fileManager fileExistsAtPath: solarizedLitePath])
+    {
+        NSString *reserveSolarizedLitePath = [[NSBundle mainBundle] pathForResource:@"SolarizedLite" ofType:@"plist"];
+        if (reserveSolarizedLitePath)
+            [fileManager copyItemAtPath: reserveSolarizedLitePath toPath: solarizedLitePath error: nil];
+    }
 }
 
 // This routine sets the Lite and Dark color dictionaries. It also checks to make sure the default color plist exists.
@@ -68,8 +75,13 @@ static id sharedColorSupport = nil;
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if (! [fileManager fileExistsAtPath: liteThemePath])
     {
-        [SUD setObject: @"LiteTheme" forKey: DefaultLiteThemeKey];
-        liteThemePath = defaultLiteThemePath;
+        [SUD setObject: @"SolarizedLite" forKey: DefaultLiteThemeKey];
+        liteThemePath = [[[newColorPath stringByAppendingString:@"/"] stringByAppendingString: @"SolarizedLite"] stringByAppendingString: @".plist"];
+        if (! [fileManager fileExistsAtPath: liteThemePath])
+        {
+            [SUD setObject: @"LiteTheme" forKey: DefaultLiteThemeKey];
+            liteThemePath = defaultLiteThemePath;
+        }
     }
     if (! [fileManager fileExistsAtPath: darkThemePath])
     {
