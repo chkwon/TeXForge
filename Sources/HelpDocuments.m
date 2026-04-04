@@ -88,7 +88,7 @@
 
 
 
-- (IBAction)displayGettingStartedTeXShop:sender
+- (IBAction)displayGettingStartedTeXForge:sender
 {
 	NSString				*fileName;
  	
@@ -129,7 +129,7 @@
 	[self displayFile: fileName];
 }
 
-- (IBAction)displayTeXShopConfusion:sender
+- (IBAction)displayTeXForgeConfusion:sender
 {
     NSString				*fileName;
     
@@ -185,7 +185,7 @@
     NSError                   *outError;
     TSDocument               *myDocument;
     
-    tempPath = @"~/Library/TeXShop/HTML/Help.html";
+    tempPath = @"~/Library/TeXForge/HTML/Help.html";
     fileName = [tempPath stringByExpandingTildeInPath];
     myURL = [NSURL fileURLWithPath: fileName];
     

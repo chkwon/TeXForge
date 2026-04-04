@@ -16,10 +16,10 @@
         <customObject id="2" customClass="NSApplication"/>
         <menu title="MainMenu" systemMenu="main" id="3">
             <items>
-                <menuItem title="TeXShop" id="4">
-                    <menu key="submenu" title="TeXShop" systemMenu="apple" id="5">
+                <menuItem title="TeXForge" id="4">
+                    <menu key="submenu" title="TeXForge" systemMenu="apple" id="5">
                         <items>
-                            <menuItem title="TeXShop에 대하여..." id="6">
+                            <menuItem title="TeXForge에 대하여..." id="6">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="orderFrontStandardAboutPanel:" target="-2" id="391"/>
@@ -47,7 +47,7 @@
                             <menuItem title="~/라이브러리/TeXshop 폴더열기" id="3sm-Lp-vzH">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="GotoLibraryTeXShop:" target="-1" id="Q6A-R2-qkJ"/>
+                                    <action selector="GotoLibraryTeXForge:" target="-1" id="Q6A-R2-qkJ"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="기본 TeX 에디터로 설정" id="mMK-q2-ZGo">
@@ -65,7 +65,7 @@
                             <menuItem isSeparatorItem="YES" id="13">
                                 <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                             </menuItem>
-                            <menuItem title="TeXShop 가리기" keyEquivalent="h" id="14">
+                            <menuItem title="TeXForge 가리기" keyEquivalent="h" id="14">
                                 <connections>
                                     <action selector="hide:" target="-1" id="387"/>
                                 </connections>
@@ -85,7 +85,7 @@
                             <menuItem isSeparatorItem="YES" id="17">
                                 <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                             </menuItem>
-                            <menuItem title="TeXShop 종료" keyEquivalent="q" id="18">
+                            <menuItem title="TeXForge 종료" keyEquivalent="q" id="18">
                                 <connections>
                                     <action selector="terminate:" target="-1" id="388"/>
                                 </connections>
@@ -1274,16 +1274,16 @@
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="225"/>
-                            <menuItem title="TeXShop 입문 (영문)" id="226">
+                            <menuItem title="TeXForge 입문 (영문)" id="226">
                                 <connections>
-                                    <action selector="displayGettingStartedTeXShop:" target="259" id="408"/>
+                                    <action selector="displayGettingStartedTeXForge:" target="259" id="408"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop 데모" id="227">
+                            <menuItem title="TeXForge 데모" id="227">
                                 <modifierMask key="keyEquivalentModifierMask"/>
-                                <menu key="submenu" title="TeXShop 데모" id="228"/>
+                                <menu key="submenu" title="TeXForge 데모" id="228"/>
                             </menuItem>
-                            <menuItem title="TeXShop 설명서" id="tOQ-Gs-eY3">
+                            <menuItem title="TeXForge 설명서" id="tOQ-Gs-eY3">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayManual:" target="259" id="sDN-xX-lE3"/>
@@ -1296,18 +1296,18 @@
                                     <action selector="displayHTMLHelp:" target="259" id="FGX-xp-s25"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop 도움말 패널" keyEquivalent="?" id="229">
+                            <menuItem title="TeXForge 도움말 패널" keyEquivalent="?" id="229">
                                 <connections>
                                     <action selector="showHelp:" target="-1" id="332"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="파일 인코딩과 TeXShop" id="PaT-NO-LH5">
+                            <menuItem title="파일 인코딩과 TeXForge" id="PaT-NO-LH5">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayFileEncoding:" target="259" id="k8G-xr-OSl"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop 힌트와 팁 (영문)" id="230">
+                            <menuItem title="TeXForge 힌트와 팁 (영문)" id="230">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayTipsandTricks:" target="259" id="451"/>
@@ -1316,7 +1316,7 @@
                             <menuItem title="단축키, 매크로, 자동완성에 대하여" id="473">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="displayTeXShopConfusion:" target="259" id="474"/>
+                                    <action selector="displayTeXForgeConfusion:" target="259" id="474"/>
                                 </connections>
                             </menuItem>
                             <menuItem title=" 매직 코멘트와 숨겨진 설정" id="wn1-vb-7dK">
@@ -1331,7 +1331,7 @@
                                     <action selector="displayRecentTeXFonts:" target="259" id="469"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop과 Applescript (영문)" id="232">
+                            <menuItem title="TeXForge과 Applescript (영문)" id="232">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayNotesonApplescript:" target="259" id="471"/>

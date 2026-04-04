@@ -1,5 +1,6 @@
-/TeXShop.xcodeproj/*.mode*
-/TeXShop.xcodeproj/*.pbxuser
-/TeXShop.xcodeproj/project.xcworkspace/xcshareddata/
-/TeXShop.xcodeproj/project.xcworkspace/xcuserdata/
-/TeXShop.xcodeproj/xcuserdata/
+/TeXForge.xcodeproj/*.mode*
+/TeXForge.xcodeproj/*.pbxuser
+/TeXForge.xcodeproj/project.xcworkspace/xcshareddata/
+/TeXForge.xcodeproj/project.xcworkspace/xcuserdata/
+/TeXForge.xcodeproj/xcuserdata/
+/build/

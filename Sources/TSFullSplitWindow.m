@@ -623,16 +623,47 @@
     //    if (([theEvent type] == NSEventTypeFlagsChanged) && ([theEvent modifierFlags] & NSCommandKeyMask))
     //        NSLog(@"yes");
     
-    if (([theEvent type] == NSEventTypeKeyDown) && ([theEvent modifierFlags] & NSCommandKeyMask)) {
-        
-        if  ([[theEvent characters] characterAtIndex:0] == '[') {
-            [self.myDocument doCommentOrIndentForTag:Munindent];
+    if ([theEvent type] == NSEventTypeKeyDown) {
+        NSEventModifierFlags flags = [theEvent modifierFlags];
+        unichar c = [[theEvent characters] characterAtIndex:0];
+        unichar ci = [[theEvent charactersIgnoringModifiers] characterAtIndex:0];
+
+        // Cmd+[ / Cmd+] — indent/unindent
+        if (flags & NSCommandKeyMask) {
+            if (c == '[') {
+                [self.myDocument doCommentOrIndentForTag:Munindent];
+                return;
+            }
+            if (c == ']') {
+                [self.myDocument doCommentOrIndentForTag:Mindent];
+                return;
+            }
+        }
+
+        // Cmd+/ — toggle comment/uncomment
+        if ((flags & NSCommandKeyMask) && !(flags & NSShiftKeyMask) && ci == '/') {
+            NSTextView *tv = (NSTextView *)[self.myDocument textView];
+            if (tv) {
+                NSString *text = [tv string];
+                NSUInteger blockStart;
+                [text getLineStart:&blockStart end:NULL contentsEnd:NULL forRange:[tv selectedRange]];
+                BOOL isCommented = (blockStart < [text length] && [text characterAtIndex:blockStart] == '%');
+                [self.myDocument doCommentOrIndentForTag:(isCommented ? Muncomment : Mcomment)];
+            }
             return;
         }
-        
-        if  ([[theEvent characters] characterAtIndex:0] == ']') {
-            [self.myDocument doCommentOrIndentForTag:Mindent];
-            return;
+
+        // Tab / Shift+Tab — indent/unindent when text is selected
+        if ([theEvent keyCode] == 48) {
+            NSTextView *tv = (NSTextView *)[self.myDocument textView];
+            if (tv && [tv selectedRange].length > 0) {
+                if (flags & NSShiftKeyMask) {
+                    [self.myDocument doCommentOrIndentForTag:Munindent];
+                } else {
+                    [self.myDocument doCommentOrIndentForTag:Mindent];
+                }
+                return;
+            }
         }
     }
     

@@ -181,7 +181,7 @@
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <customObject id="2" customClass="NSApplication"/>
-        <window title="TeXShop 환경설정" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="PrefPane" animationBehavior="default" id="3">
+        <window title="TeXForge 환경설정" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" visibleAtLaunch="NO" frameAutosaveName="PrefPane" animationBehavior="default" id="3">
             <windowStyleMask key="styleMask" titled="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
             <rect key="contentRect" x="267" y="182" width="667" height="611"/>
@@ -228,7 +228,7 @@ DQ
                             <menu key="menu" title="OtherViews" id="343">
                                 <items>
                                     <menuItem title="설정 프로파일" hidden="YES" id="344"/>
-                                    <menuItem title="TeXShop 기본" tag="1" id="345">
+                                    <menuItem title="TeXForge 기본" tag="1" id="345">
                                         <connections>
                                             <action selector="setDefaults:" target="-2" id="537"/>
                                         </connections>

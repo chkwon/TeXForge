@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CC100001A0000000C0F11070 /* TSCopilotPreferences.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000001A0000000C0F11070 /* TSCopilotPreferences.h */; };
+		CC100002A0000000C0F11070 /* TSCopilotPreferences.m in Sources */ = {isa = PBXBuildFile; fileRef = CC000002A0000000C0F11070 /* TSCopilotPreferences.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC100003A0000000C0F11070 /* TSCopilotOverlayView.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000003A0000000C0F11070 /* TSCopilotOverlayView.h */; };
+		CC100004A0000000C0F11070 /* TSCopilotOverlayView.m in Sources */ = {isa = PBXBuildFile; fileRef = CC000004A0000000C0F11070 /* TSCopilotOverlayView.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC100005A0000000C0F11070 /* TSCopilotAPIClient.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000005A0000000C0F11070 /* TSCopilotAPIClient.h */; };
+		CC100006A0000000C0F11070 /* TSCopilotAPIClient.m in Sources */ = {isa = PBXBuildFile; fileRef = CC000006A0000000C0F11070 /* TSCopilotAPIClient.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC100007A0000000C0F11070 /* TSCopilotManager.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000007A0000000C0F11070 /* TSCopilotManager.h */; };
+		CC100008A0000000C0F11070 /* TSCopilotManager.m in Sources */ = {isa = PBXBuildFile; fileRef = CC000008A0000000C0F11070 /* TSCopilotManager.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC100009A0000000C0F11070 /* TSTextView+Copilot.h in Headers */ = {isa = PBXBuildFile; fileRef = CC000009A0000000C0F11070 /* TSTextView+Copilot.h */; };
+		CC10000AA0000000C0F11070 /* TSTextView+Copilot.m in Sources */ = {isa = PBXBuildFile; fileRef = CC00000AA0000000C0F11070 /* TSTextView+Copilot.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		CC200002A0000000C0F11070 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CC200001A0000000C0F11070 /* Security.framework */; };
 		346FA9FD1309961900DAA25D /* TSLayoutManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 346FA9FB1309961900DAA25D /* TSLayoutManager.h */; };
 		346FA9FE1309961900DAA25D /* TSLayoutManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 346FA9FC1309961900DAA25D /* TSLayoutManager.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
 		40008E6B055436A5005D78AB /* mptopdfwrap in Resources */ = {isa = PBXBuildFile; fileRef = 40008E6A055436A5005D78AB /* mptopdfwrap */; };
@@ -364,7 +375,7 @@
 		40E81A6929A0788D0014D82A /* Manual.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 40E81A6729A0788D0014D82A /* Manual.pdf */; };
 		40E94AFA07ECF1F500782DE9 /* TextTool.tiff in Resources */ = {isa = PBXBuildFile; fileRef = 40E94AF907ECF1F500782DE9 /* TextTool.tiff */; };
 		40E994552C4441710044A02F /* tools.png in Resources */ = {isa = PBXBuildFile; fileRef = 40E994542C4441710044A02F /* tools.png */; };
-		40F1D6122C4D41D600735993 /* Manual.log in Resources */ = {isa = PBXBuildFile; fileRef = 40F1D6102C4D41D600735993 /* Manual.log */; };
+
 		40F80CAE1FAD3A2F00377616 /* Changes.pdf in Resources */ = {isa = PBXBuildFile; fileRef = 40F80CAC1FAD3A2E00377616 /* Changes.pdf */; };
 		40FFD6F82AB63CEF003E4D12 /* gstestwrap in Resources */ = {isa = PBXBuildFile; fileRef = 40FFD6F72AB63CEF003E4D12 /* gstestwrap */; };
 		520C2EEB08AE92850010B1F8 /* TSDocument-Jobs.m in Sources */ = {isa = PBXBuildFile; fileRef = 520C2EEA08AE92850010B1F8 /* TSDocument-Jobs.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
@@ -849,7 +860,7 @@
 		40BC8E881922D7E900F3EF2D /* IconsTeX.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = IconsTeX.icns; sourceTree = SOURCE_ROOT; };
 		40BCDA501FF9589100AAC575 /* TSWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSWindowController.h; sourceTree = "<group>"; };
 		40BCDA511FF9589100AAC575 /* TSWindowController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSWindowController.m; sourceTree = "<group>"; };
-		40C0FF2E217AA3D100DF8F67 /* TeXShop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TeXShop.entitlements; sourceTree = "<group>"; };
+		40C0FF2E217AA3D100DF8F67 /* TeXForge.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TeXForge.entitlements; sourceTree = "<group>"; };
 		40C889DA0F1A852E00B5B8A9 /* dsa_pub.pem */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = dsa_pub.pem; sourceTree = "<group>"; };
 		40CACEAD25CF14870021A289 /* pt */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = pt; path = pt.lproj/TeXLiveDocumentation.pdf; sourceTree = "<group>"; };
 		40CBED041D3A9C0600415A91 /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = System/Library/Frameworks/AVKit.framework; sourceTree = SDKROOT; };
@@ -895,7 +906,7 @@
 		40EB71E50400BE1000000009 /* TSDocumentController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSDocumentController.h; sourceTree = "<group>"; };
 		40EB71E60400BE1000000009 /* TSDocumentController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSDocumentController.m; sourceTree = "<group>"; };
 		40EC12140C66C4BE00B9A448 /* QTKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QTKit.framework; path = /System/Library/Frameworks/QTKit.framework; sourceTree = "<absolute>"; };
-		40F1D6112C4D41D600735993 /* Base */ = {isa = PBXFileReference; lastKnownFileType = text; name = Base; path = Base.lproj/Manual.log; sourceTree = "<group>"; };
+
 		40FFD6F72AB63CEF003E4D12 /* gstestwrap */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.csh; path = gstestwrap; sourceTree = "<group>"; };
 		520C2EEA08AE92850010B1F8 /* TSDocument-Jobs.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = "TSDocument-Jobs.m"; sourceTree = "<group>"; };
 		520C2EEE08AE984C0010B1F8 /* TSDocument-RootFile.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = "TSDocument-RootFile.m"; sourceTree = "<group>"; };
@@ -1029,6 +1040,17 @@
 		F5ECC3160214673901DF2474 /* texicon.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; path = texicon.tiff; sourceTree = "<group>"; };
 		F5ECC3200214678B01DF2474 /* TSToolbarController.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = TSToolbarController.h; sourceTree = "<group>"; };
 		F5ECC3210214678B01DF2474 /* TSToolbarController.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = TSToolbarController.m; sourceTree = "<group>"; };
+		CC000001A0000000C0F11070 /* TSCopilotPreferences.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSCopilotPreferences.h; sourceTree = "<group>"; };
+		CC000002A0000000C0F11070 /* TSCopilotPreferences.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSCopilotPreferences.m; sourceTree = "<group>"; };
+		CC000003A0000000C0F11070 /* TSCopilotOverlayView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSCopilotOverlayView.h; sourceTree = "<group>"; };
+		CC000004A0000000C0F11070 /* TSCopilotOverlayView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSCopilotOverlayView.m; sourceTree = "<group>"; };
+		CC000005A0000000C0F11070 /* TSCopilotAPIClient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSCopilotAPIClient.h; sourceTree = "<group>"; };
+		CC000006A0000000C0F11070 /* TSCopilotAPIClient.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSCopilotAPIClient.m; sourceTree = "<group>"; };
+		CC000007A0000000C0F11070 /* TSCopilotManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSCopilotManager.h; sourceTree = "<group>"; };
+		CC000008A0000000C0F11070 /* TSCopilotManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSCopilotManager.m; sourceTree = "<group>"; };
+		CC000009A0000000C0F11070 /* TSTextView+Copilot.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "TSTextView+Copilot.h"; sourceTree = "<group>"; };
+		CC00000AA0000000C0F11070 /* TSTextView+Copilot.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "TSTextView+Copilot.m"; sourceTree = "<group>"; };
+		CC200001A0000000C0F11070 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1045,6 +1067,7 @@
 				40B42AED1BBB6CC30007C9FB /* Sparkle.framework in Frameworks */,
 				406AB0B0136A5E03009F4D8F /* OgreKit.framework in Frameworks */,
 				40B288D41398A399005C921D /* libz.a in Frameworks */,
+				CC200002A0000000C0F11070 /* Security.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1117,7 +1140,7 @@
 				40A03E850F3A47760014104E /* First Steps with Mathematical Typesetting.pdf */,
 				40A03E8A0F3A47860014104E /* First Steps with TeXShop.pdf */,
 				403244B329A037A9000431A1 /* Manual.pdf */,
-				40F1D6102C4D41D600735993 /* Manual.log */,
+
 				40E2117D289761190033BA29 /* SamplePage.html */,
 				40E2117A289761050033BA29 /* READ ME FIRST.pdf */,
 				40E21177289760EE0033BA29 /* more.jpg */,
@@ -1181,7 +1204,7 @@
 			children = (
 				40E81A6729A0788D0014D82A /* Manual.pdf */,
 				4020276425D06FD70039F253 /* TeX.mdimporter */,
-				40C0FF2E217AA3D100DF8F67 /* TeXShop.entitlements */,
+				40C0FF2E217AA3D100DF8F67 /* TeXForge.entitlements */,
 				4020276325D06FAA0039F253 /* TeX.mdimporter */,
 				5288888E089D06B50095E82D /* Sources */,
 				2A37F4B8FDCFA73011CA2CEA /* Resources */,
@@ -1279,6 +1302,7 @@
 				522BDC370A2A115E007CAB82 /* 3rdparty */,
 				40CBED061D3A9C1000415A91 /* AVFoundation.framework */,
 				40CBED041D3A9C0600415A91 /* AVKit.framework */,
+				CC200001A0000000C0F11070 /* Security.framework */,
 				1058C7A6FEA54F5311CA2CBB /* Linked Frameworks */,
 				1058C7A8FEA54F5311CA2CBB /* Other Frameworks */,
 			);
@@ -1490,6 +1514,16 @@
 				406B626D199934D000C46D2A /* NSText-Extras.m */,
 				40A9D09019AE7D4400FEFAC6 /* TSGlyphPopoverController.h */,
 				40A9D09119AE7D4400FEFAC6 /* TSGlyphPopoverController.m */,
+				CC000001A0000000C0F11070 /* TSCopilotPreferences.h */,
+				CC000002A0000000C0F11070 /* TSCopilotPreferences.m */,
+				CC000003A0000000C0F11070 /* TSCopilotOverlayView.h */,
+				CC000004A0000000C0F11070 /* TSCopilotOverlayView.m */,
+				CC000005A0000000C0F11070 /* TSCopilotAPIClient.h */,
+				CC000006A0000000C0F11070 /* TSCopilotAPIClient.m */,
+				CC000007A0000000C0F11070 /* TSCopilotManager.h */,
+				CC000008A0000000C0F11070 /* TSCopilotManager.m */,
+				CC000009A0000000C0F11070 /* TSTextView+Copilot.h */,
+				CC00000AA0000000C0F11070 /* TSTextView+Copilot.m */,
 			);
 			name = Text;
 			sourceTree = "<group>";
@@ -1668,6 +1702,11 @@
 				40A3575F13CA151400793021 /* TSApplication.h in Headers */,
 				403649E3211BDA810086DDD1 /* TSPreferenceWindow.h in Headers */,
 				403B423A178CB65400E38A72 /* OverView.h in Headers */,
+				CC100001A0000000C0F11070 /* TSCopilotPreferences.h in Headers */,
+				CC100003A0000000C0F11070 /* TSCopilotOverlayView.h in Headers */,
+				CC100005A0000000C0F11070 /* TSCopilotAPIClient.h in Headers */,
+				CC100007A0000000C0F11070 /* TSCopilotManager.h in Headers */,
+				CC100009A0000000C0F11070 /* TSTextView+Copilot.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1676,7 +1715,7 @@
 /* Begin PBXNativeTarget section */
 		407880610519249A006979EA /* TeXShop */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5288880A089D023A0095E82D /* Build configuration list for PBXNativeTarget "TeXShop" */;
+			buildConfigurationList = 5288880A089D023A0095E82D /* Build configuration list for PBXNativeTarget "TeXForge" */;
 			buildPhases = (
 				407880620519249A006979EA /* Headers */,
 				4078807C0519249A006979EA /* Resources */,
@@ -1692,9 +1731,9 @@
 			);
 			dependencies = (
 			);
-			name = TeXShop;
+			name = TeXForge;
 			productInstallPath = "$(HOME)/Applications";
-			productName = TeXShop;
+			productName = TeXForge;
 			productReference = 407881970519249A006979EA /* TeXShop.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -1931,7 +1970,7 @@
 				400F119C21B8721A00EAEAA0 /* UpdateAction.png in Resources */,
 				40D1F2CC06040BCF00087115 /* mat01.tiff in Resources */,
 				40D1F2CD06040BCF00087115 /* mat02.tiff in Resources */,
-				40F1D6122C4D41D600735993 /* Manual.log in Resources */,
+
 				40658EEB07EBD7E70088F777 /* DrawerToggleToolbarImage.tiff in Resources */,
 				40E94AFA07ECF1F500782DE9 /* TextTool.tiff in Resources */,
 				529B9B73089D8287006CC11B /* BackAdorn.tif in Resources */,
@@ -2083,6 +2122,11 @@
 				403B423B178CB65400E38A72 /* OverView.m in Sources */,
 				40BCDA531FF9589200AAC575 /* TSWindowController.m in Sources */,
 				406B626F199934D000C46D2A /* NSText-Extras.m in Sources */,
+				CC100002A0000000C0F11070 /* TSCopilotPreferences.m in Sources */,
+				CC100004A0000000C0F11070 /* TSCopilotOverlayView.m in Sources */,
+				CC100006A0000000C0F11070 /* TSCopilotAPIClient.m in Sources */,
+				CC100008A0000000C0F11070 /* TSCopilotManager.m in Sources */,
+				CC10000AA0000000C0F11070 /* TSTextView+Copilot.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2390,14 +2434,6 @@
 			name = Manual.pdf;
 			sourceTree = "<group>";
 		};
-		40F1D6102C4D41D600735993 /* Manual.log */ = {
-			isa = PBXVariantGroup;
-			children = (
-				40F1D6112C4D41D600735993 /* Base */,
-			);
-			name = Manual.log;
-			sourceTree = "<group>";
-		};
 		40F80CAC1FAD3A2E00377616 /* Changes.pdf */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -2605,13 +2641,13 @@
 			buildSettings = {
 				BUNDLE_VERSION = 3.14;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_ENTITLEMENTS = TeXShop.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = TeXForge.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 5.57;
-				DEVELOPMENT_TEAM = RBGCY5RJWM;
+				CURRENT_PROJECT_VERSION = 1.0.0;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2634,9 +2670,9 @@
 					"\"$(SRCROOT)/Resources/Binaries\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = 5.57;
-				PRODUCT_BUNDLE_IDENTIFIER = TeXShop;
-				PRODUCT_NAME = TeXShop;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chkwon.TeXForge;
+				PRODUCT_NAME = TeXForge;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SECTORDER_FLAGS = "";
@@ -2652,13 +2688,13 @@
 			buildSettings = {
 				BUNDLE_VERSION = 3.14;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_ENTITLEMENTS = TeXShop.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = TeXForge.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 5.57;
-				DEVELOPMENT_TEAM = RBGCY5RJWM;
+				CURRENT_PROJECT_VERSION = 1.0.0;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2679,10 +2715,10 @@
 					"\"$(SRCROOT)/Resources/Binaries\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = 5.57;
+				MARKETING_VERSION = 1.0.0;
 				ONLY_ACTIVE_ARCH = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = TeXShop;
-				PRODUCT_NAME = TeXShop;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chkwon.TeXForge;
+				PRODUCT_NAME = TeXForge;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SECTORDER_FLAGS = "";
@@ -2716,7 +2752,7 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				DEVELOPMENT_TEAM = RBGCY5RJWM;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -2767,7 +2803,7 @@
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				DEVELOPMENT_TEAM = RBGCY5RJWM;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -2797,7 +2833,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		5288880A089D023A0095E82D /* Build configuration list for PBXNativeTarget "TeXShop" */ = {
+		5288880A089D023A0095E82D /* Build configuration list for PBXNativeTarget "TeXForge" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				5288880B089D023A0095E82D /* Debug */,

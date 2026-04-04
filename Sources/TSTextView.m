@@ -37,6 +37,7 @@
 #import "TSLayoutManager.h" // added by Terada
 #import "GlobalData.h"
 #import "TSColorSupport.h"
+#import "TSTextView+Copilot.h"
 
 @protocol BDSKCompletionProtocol <NSObject>
 - (NSArray *)completionsForString:(NSString *)searchString;
@@ -2103,9 +2104,13 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
         [mySelectedTextAttributes setObject: [NSColor colorWithCatalogName: @"System" colorName: @"selectedTextBackgroundColor"] forKey: @"NSBackgroundColor" ];
          [[_document textView] setSelectedTextAttributes: mySelectedTextAttributes];
     }
-    
-   
-	
+
+    // --- Copilot inline suggestion acceptance ---
+    if ([self copilotHandleTabKey:theEvent]) {
+        return;
+    }
+    // --- End Copilot ---
+
 	// FIXME: Using static variables like this is *EVIL*
 	// It will simply not work correctly when using more than one window/view (which we frequently do)!
 	// TODO: Convert all of these static stack variables to member variables.

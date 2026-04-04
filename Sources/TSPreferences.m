@@ -80,7 +80,9 @@ static id _sharedInstance = nil;
 	_sharedInstance = self;
 	_undoManager = [[NSUndoManager alloc] init];
 	// setup the default font here so it's defined when we run for the first time.
-	self.documentFont = [NSFont userFontOfSize:12.0];
+	self.documentFont = [NSFont fontWithName:@"SFMono-Regular" size:12.0];
+	if (!self.documentFont)
+		self.documentFont = [NSFont userFixedPitchFontOfSize:12.0];
     self.fontAttributes = nil;
 	// self.consoleFont = [NSFont userFixedPitchedFontOfSize:10.0];
 
@@ -185,7 +187,7 @@ Loads the .nib file if necessary, fills all the controls with the values from th
 - (void)undoDefaultPrefs:(NSDictionary *)oldDefaults;
 //-----------------------------------
 {
-	[SUD setPersistentDomain:oldDefaults forName:@"TeXShop"];
+	[SUD setPersistentDomain:oldDefaults forName:[[NSBundle mainBundle] bundleIdentifier]];
 	[SUD synchronize];
 	[self updateControlsFromUserDefaults:SUD];
     
@@ -227,7 +229,7 @@ Loads the .nib file if necessary, fills all the controls with the values from th
 	NSParameterAssert(fileName != nil);
 	factoryDefaults = [[NSString stringWithContentsOfFile:fileName usedEncoding: &theEncoding error:NULL] propertyList];
 
-	[SUD setPersistentDomain:factoryDefaults forName:@"TeXShop"];
+	[SUD setPersistentDomain:factoryDefaults forName:[[NSBundle mainBundle] bundleIdentifier]];
 	[SUD synchronize]; /* added by Koch Feb 19, 2001 to fix pref bug when no defaults present */
 
 	// also register the default font. _documentFont was set in -init, dump it here to
@@ -2427,7 +2429,7 @@ A tag of 0 means "no", a tag of 1 means "yes".
 	NSParameterAssert(fileName != nil);
 	factoryDefaults = [[NSString stringWithContentsOfFile:fileName usedEncoding: &theEncoding error: NULL] propertyList];
 
-	[SUD setPersistentDomain:factoryDefaults forName:@"TeXShop"];
+	[SUD setPersistentDomain:factoryDefaults forName:[[NSBundle mainBundle] bundleIdentifier]];
 	[SUD synchronize]; /* added by Koch Feb 19, 2001 to fix pref bug when no defaults present */
 
 	// also register the default font. documentFont was set in -init, dump it here to

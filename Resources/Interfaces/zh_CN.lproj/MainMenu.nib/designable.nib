@@ -15,10 +15,10 @@
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <menu title="MainMenu" systemMenu="main" id="29" userLabel="MainMenu">
             <items>
-                <menuItem title="TeXShop" id="56">
-                    <menu key="submenu" title="TeXShop" systemMenu="apple" id="57">
+                <menuItem title="TeXForge" id="56">
+                    <menu key="submenu" title="TeXForge" systemMenu="apple" id="57">
                         <items>
-                            <menuItem title="关于 TeXShop" id="58">
+                            <menuItem title="关于 TeXForge" id="58">
                                 <connections>
                                     <action selector="orderFrontStandardAboutPanel:" target="-2" id="145"/>
                                 </connections>
@@ -42,13 +42,13 @@
                                     <action selector="displayGPLLicense:" target="705" id="BRI-95-GaN"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="打开 ~/Library/TeXShop" id="k2I-th-VKa">
+                            <menuItem title="打开 ~/Library/TeXForge" id="k2I-th-VKa">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="GotoLibraryTeXShop:" target="-1" id="GVI-6r-1Bb"/>
+                                    <action selector="GotoLibraryTeXForge:" target="-1" id="GVI-6r-1Bb"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="设置 TeXShop 为默认 TeX 编辑器" id="VKh-pv-PPa">
+                            <menuItem title="设置 TeXForge 为默认 TeX 编辑器" id="VKh-pv-PPa">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="makeDefaultEditor:" target="-1" id="Fsd-hl-6B3"/>
@@ -63,7 +63,7 @@
                             <menuItem isSeparatorItem="YES" id="401">
                                 <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                             </menuItem>
-                            <menuItem title="隐藏 TeXShop" keyEquivalent="h" id="228">
+                            <menuItem title="隐藏 TeXForge" keyEquivalent="h" id="228">
                                 <connections>
                                     <action selector="hide:" target="-2" id="229"/>
                                 </connections>
@@ -82,7 +82,7 @@
                             <menuItem isSeparatorItem="YES" id="224">
                                 <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                             </menuItem>
-                            <menuItem title="退出 TeXShop" keyEquivalent="q" id="226">
+                            <menuItem title="退出 TeXForge" keyEquivalent="q" id="226">
                                 <connections>
                                     <action selector="terminate:" target="-1" id="227"/>
                                 </connections>
@@ -1276,13 +1276,13 @@
                             <menuItem isSeparatorItem="YES" id="892">
                                 <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                             </menuItem>
-                            <menuItem title="TeXShop 入门" id="698">
+                            <menuItem title="TeXForge 入门" id="698">
                                 <connections>
-                                    <action selector="displayGettingStartedTeXShop:" target="705" id="710"/>
+                                    <action selector="displayGettingStartedTeXForge:" target="705" id="710"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop 演示" id="699"/>
-                            <menuItem title="TeXShop 手册" id="wEg-wt-tOY">
+                            <menuItem title="TeXForge 演示" id="699"/>
+                            <menuItem title="TeXForge 手册" id="wEg-wt-tOY">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayManual:" target="705" id="TRv-FF-0V8"/>
@@ -1295,7 +1295,7 @@
                                     <action selector="displayHTMLHelp:" target="705" id="BN4-vm-BYY"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop 帮助面板..." keyEquivalent="?" id="138">
+                            <menuItem title="TeXForge 帮助面板..." keyEquivalent="?" id="138">
                                 <connections>
                                     <action selector="showHelp:" target="-1" id="144"/>
                                 </connections>
@@ -1306,16 +1306,16 @@
                                     <action selector="displayFileEncoding:" target="705" id="wuT-Cx-dPF"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop 提示与技巧" id="1059">
+                            <menuItem title="TeXForge 提示与技巧" id="1059">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayTipsandTricks:" target="705" id="1060"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="TeXShop 功能答疑" id="2RH-ib-DJ5">
+                            <menuItem title="TeXForge 功能答疑" id="2RH-ib-DJ5">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
-                                    <action selector="displayTeXShopConfusion:" target="705" id="fnI-bz-Egx"/>
+                                    <action selector="displayTeXForgeConfusion:" target="705" id="fnI-bz-Egx"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="魔术行; 隐藏设置" id="572-je-Eqd">
@@ -1330,7 +1330,7 @@
                                     <action selector="displayRecentTeXFonts:" target="705" id="E5X-f6-7LR"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="在 TeXShop 中使用 AppleScript" id="dxu-Z4-tmW">
+                            <menuItem title="在 TeXForge 中使用 AppleScript" id="dxu-Z4-tmW">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="displayNotesonApplescript:" target="705" id="htU-ot-VUB"/>

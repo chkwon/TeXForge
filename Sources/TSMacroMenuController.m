@@ -121,7 +121,7 @@ static id sharedMacroMenuController = nil;
 	
 	if (!self.macroDict || ![self.macroDict isKindOfClass: [NSDictionary class]]) {
 		// alert: failed to parse Macros.plist
-		NSRunAlertPanel(@"Error", @"failed to parse ~/Library/TeXShop/Macros/Macros_??.plist file",
+		NSRunAlertPanel(@"Error", @"failed to parse ~/Library/TeXForge/Macros/Macros_??.plist file",
 						nil, nil, nil);
 //		if (error) [error release]; // mitsu 1.29 (U) added
         error = nil;
