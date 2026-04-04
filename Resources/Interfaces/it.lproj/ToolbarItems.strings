@@ -269,3 +269,11 @@ tiToolTipHtmlURLField            = "URL principale";
 tiLabelHtmlSearch             = "Cerca";
 tiPaletteLabelHtmlSearch      = "Cerca";
 tiToolTipHtmlSearch           = "Cerca";
+
+tiLabelCopilot                = "Copilot";
+tiPaletteLabelCopilot         = "Copilot Status";
+tiToolTipCopilot              = "AI Copilot status (click for settings)";
+
+tiLabelCopilotSplit           = "Copilot";
+tiPaletteLabelCopilotSplit    = "Copilot Status";
+tiToolTipCopilotSplit         = "AI Copilot status (click for settings)";

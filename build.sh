@@ -33,5 +33,9 @@ codesign --force --deep --sign - \
     --entitlements "$PROJECT_DIR/TeXForge.entitlements" \
     "$APP"
 
+# Remove provenance attr that macOS adds to locally-built apps
+# (can cause "can't be opened" dialog via LaunchServices)
+xattr -dr com.apple.provenance "$APP" 2>/dev/null
+
 codesign --verify --deep "$APP"
 echo "Build successful: $APP"
