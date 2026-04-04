@@ -26,6 +26,7 @@ extern NSString * const TSCopilotModelKey;          // NSString: model name
 extern NSString * const TSCopilotDebounceMsKey;     // NSInteger: debounce in ms
 extern NSString * const TSCopilotMaxTokensKey;      // NSInteger: max tokens per completion
 extern NSString * const TSCopilotGhostAlphaKey;     // float: ghost text opacity (0.0-1.0)
+extern NSString * const TSCopilotCodeOnlyKey;       // BOOL: only complete LaTeX syntax, not prose
 extern NSString * const TSCopilotSystemPromptKey;   // NSString: custom system prompt (optional)
 
 @interface TSCopilotPreferences : NSObject
@@ -38,6 +39,7 @@ extern NSString * const TSCopilotSystemPromptKey;   // NSString: custom system p
 + (NSInteger)debounceMs;
 + (NSInteger)maxTokens;
 + (CGFloat)ghostAlpha;
++ (BOOL)isCodeOnly;
 + (NSString *)systemPrompt;
 
 // --- Keychain API key management ---
