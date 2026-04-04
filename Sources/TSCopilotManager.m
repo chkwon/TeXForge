@@ -164,6 +164,11 @@ static const NSUInteger kSuffixMaxChars  = 500;
     NSString *prefix = [self _prefixFromText:fullText cursorPosition:cursorPos];
     NSString *suffix = [self _suffixFromText:fullText cursorPosition:cursorPos];
 
+    // In code-only mode, skip if cursor is in a prose context
+    if ([TSCopilotPreferences isCodeOnly] && ![self _isLaTeXContextInPrefix:prefix]) {
+        return;
+    }
+
     // Get file name for context
     NSString *fileName = nil;
     if ([textView respondsToSelector:@selector(document)]) {
@@ -239,6 +244,82 @@ static const NSUInteger kSuffixMaxChars  = 500;
     NSUInteger remaining = text.length - pos;
     NSUInteger len = MIN(remaining, kSuffixMaxChars);
     return [text substringWithRange:NSMakeRange(pos, len)];
+}
+
+#pragma mark - Code-Only Context Detection
+
+/// Returns YES if the prefix text suggests the cursor is in a LaTeX code context
+/// (after a command, inside braces/brackets, in math mode, at line start with backslash, etc.)
+/// Returns NO if the cursor appears to be in a prose/text context.
+- (BOOL)_isLaTeXContextInPrefix:(NSString *)prefix
+{
+    if (prefix.length == 0) return YES; // Empty document — allow completion
+
+    // Scan backwards from cursor to find the nearest context clue
+    NSUInteger len = prefix.length;
+    NSUInteger scanLimit = MIN(len, (NSUInteger)80); // Look back at most 80 chars
+
+    // Track state
+    BOOL inMath = NO;
+    NSInteger braceDepth = 0;
+    NSInteger bracketDepth = 0;
+
+    // Check if we're inside a math environment by scanning for unmatched $ or \[ or \(
+    // (simplified: just check for recent $ on the same line)
+    NSRange lastNewline = [prefix rangeOfString:@"\n" options:NSBackwardsSearch];
+    NSString *currentLine = (lastNewline.location != NSNotFound)
+        ? [prefix substringFromIndex:lastNewline.location + 1]
+        : prefix;
+
+    // Count $ signs on current line (odd count = inside math mode)
+    NSUInteger dollarCount = 0;
+    for (NSUInteger i = 0; i < currentLine.length; i++) {
+        unichar c = [currentLine characterAtIndex:i];
+        if (c == '$' && (i == 0 || [currentLine characterAtIndex:i - 1] != '\\')) {
+            dollarCount++;
+        }
+    }
+    if (dollarCount % 2 == 1) return YES; // Inside inline math
+
+    // Scan backwards from end of prefix
+    for (NSUInteger i = 0; i < scanLimit; i++) {
+        NSUInteger pos = len - 1 - i;
+        unichar c = [prefix characterAtIndex:pos];
+
+        // Skip whitespace
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') continue;
+
+        // LaTeX command context: cursor is right after or inside a command
+        if (c == '\\') return YES;                     // \command|
+        if (c == '{' || c == '}') return YES;          // \cmd{|  or after closing }
+        if (c == '[' || c == ']') return YES;          // \cmd[|  or after closing ]
+        if (c == '$') return YES;                      // Math mode boundary
+        if (c == '%') return YES;                      // Comment line
+        if (c == '&') return YES;                      // Table alignment
+        if (c == '~') return YES;                      // Non-breaking space (LaTeX)
+        if (c == '#') return YES;                      // Macro parameter
+
+        // Check if this non-whitespace char is part of a LaTeX command argument
+        // by looking further back for an opening brace
+        // e.g., \section{Some Title| — cursor after prose inside braces is still code context
+        NSString *scannedBack = [prefix substringFromIndex:pos];
+        if ([scannedBack rangeOfString:@"{"].location != NSNotFound) {
+            // There's an unclosed brace before the cursor on this segment
+            NSUInteger opens = 0, closes = 0;
+            for (NSUInteger j = 0; j < scannedBack.length; j++) {
+                unichar bc = [scannedBack characterAtIndex:j];
+                if (bc == '{') opens++;
+                else if (bc == '}') closes++;
+            }
+            if (opens > closes) return YES; // Inside a brace group
+        }
+
+        // If we hit a regular letter/digit without any LaTeX syntax, it's prose
+        return NO;
+    }
+
+    // If we scanned the full limit without finding anything, assume prose
+    return NO;
 }
 
 #pragma mark - Notifications

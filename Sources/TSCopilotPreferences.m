@@ -18,6 +18,7 @@ NSString * const TSCopilotModelKey       = @"CopilotModel";
 NSString * const TSCopilotDebounceMsKey  = @"CopilotDebounceMs";
 NSString * const TSCopilotMaxTokensKey   = @"CopilotMaxTokens";
 NSString * const TSCopilotGhostAlphaKey  = @"CopilotGhostAlpha";
+NSString * const TSCopilotCodeOnlyKey    = @"CopilotCodeOnly";
 NSString * const TSCopilotSystemPromptKey = @"CopilotSystemPrompt";
 
 static NSString * const kCredentialServicePrefix = @"com.TeXForge.Copilot.";
@@ -38,6 +39,7 @@ static NSString * const kCredentialServicePrefix = @"com.TeXForge.Copilot.";
         TSCopilotDebounceMsKey:  @500,
         TSCopilotMaxTokensKey:   @128,
         TSCopilotGhostAlphaKey:  @0.4,
+        TSCopilotCodeOnlyKey:    @NO,
         TSCopilotSystemPromptKey: @"",
     };
     [SUD registerDefaults:defaults];
@@ -80,10 +82,28 @@ static NSString * const kCredentialServicePrefix = @"com.TeXForge.Copilot.";
     return [SUD floatForKey:TSCopilotGhostAlphaKey];
 }
 
++ (BOOL)isCodeOnly
+{
+    return [SUD boolForKey:TSCopilotCodeOnlyKey];
+}
+
 + (NSString *)systemPrompt
 {
     NSString *custom = [SUD stringForKey:TSCopilotSystemPromptKey];
     if (custom.length > 0) return custom;
+
+    if ([self isCodeOnly]) {
+        return @"You are a LaTeX code completion assistant. "
+               @"Given the document context with the cursor position marked by <|cursor|>, "
+               @"predict what the user wants to type next. "
+               @"IMPORTANT: Only complete LaTeX commands, environments, arguments, labels, "
+               @"references, math mode expressions, and structural formatting. "
+               @"Do NOT complete or suggest natural language prose, sentence text, or paragraph content. "
+               @"If the cursor is in a prose context with no LaTeX syntax to complete, return nothing. "
+               @"Return ONLY the completion text, with no explanation, no markdown formatting, "
+               @"and no repetition of existing text.";
+    }
+
     return @"You are a LaTeX code completion assistant. "
            @"Given the document context with the cursor position marked by <|cursor|>, "
            @"predict what the user wants to type next. "
@@ -193,7 +213,7 @@ static NSPanel *_settingsPanel = nil;
 
 + (void)_buildSettingsPanel
 {
-    NSRect frame = NSMakeRect(0, 0, 480, 400);
+    NSRect frame = NSMakeRect(0, 0, 480, 430);
     _settingsPanel = [[NSPanel alloc] initWithContentRect:frame
                                                 styleMask:(NSWindowStyleMaskTitled |
                                                            NSWindowStyleMaskClosable)
@@ -216,6 +236,15 @@ static NSPanel *_settingsPanel = nil;
     enableCheck.frame = NSMakeRect(20, y, 300, 22);
     enableCheck.state = [self isEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
     [content addSubview:enableCheck];
+    y -= 28;
+
+    // --- Code only checkbox ---
+    NSButton *codeOnlyCheck = [NSButton checkboxWithTitle:@"Code only (no prose suggestions)"
+                                                   target:self
+                                                   action:@selector(_toggleCodeOnly:)];
+    codeOnlyCheck.frame = NSMakeRect(20, y, 300, 22);
+    codeOnlyCheck.state = [self isCodeOnly] ? NSControlStateValueOn : NSControlStateValueOff;
+    [content addSubview:codeOnlyCheck];
     y -= 35;
 
     // --- Provider popup ---
@@ -349,6 +378,12 @@ static NSPanel *_settingsPanel = nil;
     // Live toggle — saved immediately
     [SUD setBool:(sender.state == NSControlStateValueOn) forKey:TSCopilotEnabledKey];
     [self _postChangeNotification];
+}
+
++ (void)_toggleCodeOnly:(NSButton *)sender
+{
+    // Live toggle — saved immediately
+    [SUD setBool:(sender.state == NSControlStateValueOn) forKey:TSCopilotCodeOnlyKey];
 }
 
 + (void)_providerChanged:(NSPopUpButton *)sender
