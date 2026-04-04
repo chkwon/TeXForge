@@ -269,3 +269,11 @@ tiLabelHtmlSearch             = "Search";
 tiPaletteLabelHtmlSearch      = "Search";
 tiToolTipHtmlSearch           = "Search";
 
+
+tiLabelCopilot                = "Copilot";
+tiPaletteLabelCopilot         = "Copilot Status";
+tiToolTipCopilot              = "AI Copilot status (click for settings)";
+
+tiLabelCopilotSplit           = "Copilot";
+tiPaletteLabelCopilotSplit    = "Copilot Status";
+tiToolTipCopilotSplit         = "AI Copilot status (click for settings)";

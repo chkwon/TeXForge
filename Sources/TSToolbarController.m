@@ -53,6 +53,9 @@
 #import "TSMacroMenuController.h"
 // end addition
 
+#import "TSCopilotPreferences.h"
+#import "TSCopilotAPIClient.h"
+
 
 static NSString* 	kSourceToolbarIdentifier 	= @"Source Toolbar Identifier";
 static NSString* 	kPDFToolbarIdentifier 		= @"PDF Toolbar Identifier";
@@ -84,6 +87,10 @@ static NSString*	kSplitID			= @"Split";
 // added by mitsu --(H) Macro menu; macroButton
 static NSString*	kMacrosTID			= @"Macros";
 // end addition
+
+// Copilot status toolbar items
+static NSString*	kCopilotTID			= @"Copilot";
+static NSString*	skCopilotTID		= @"CopilotSplit";
 
 
 // PDF Window toolbar items
@@ -361,6 +368,75 @@ else
 //
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Copilot toolbar button helpers
+// -----------------------------------------------------------------------------
+
+- (void)_updateCopilotButton:(NSButton *)button
+{
+    TSCopilotConnectionStatus status = [TSCopilotPreferences connectionStatus];
+    NSColor *tint;
+    NSString *tooltip;
+
+    switch (status) {
+        case TSCopilotConnectionStatusDisabled:
+            tint = [NSColor systemGrayColor];
+            tooltip = @"Copilot: Disabled";
+            break;
+        case TSCopilotConnectionStatusNotConfigured:
+            tint = [NSColor systemOrangeColor];
+            tooltip = [NSString stringWithFormat:@"Copilot: No credentials (%@)",
+                       [TSCopilotPreferences provider]];
+            break;
+        case TSCopilotConnectionStatusReady:
+            tint = [NSColor systemGreenColor];
+            tooltip = [NSString stringWithFormat:@"Copilot: Ready (%@)",
+                       [TSCopilotPreferences provider]];
+            break;
+    }
+
+    if (@available(macOS 11.0, *)) {
+        NSImage *symbol = [NSImage imageWithSystemSymbolName:@"sparkle"
+                                   accessibilityDescription:@"Copilot Status"];
+        if (@available(macOS 12.0, *)) {
+            NSImageSymbolConfiguration *config =
+                [NSImageSymbolConfiguration configurationWithHierarchicalColor:tint];
+            button.image = [symbol imageWithSymbolConfiguration:config];
+        } else {
+            button.image = symbol;
+            button.contentTintColor = tint;
+        }
+    }
+    button.toolTip = tooltip;
+}
+
+- (void)showCopilotSettings:(id)sender
+{
+    [TSCopilotPreferences showSettingsPanel];
+}
+
+- (void)_copilotPreferencesDidChange:(NSNotification *)note
+{
+    NSArray *windows = @[];
+    if ([self textWindow])
+        windows = @[[self textWindow]];
+    if ([self fullSplitWindow])
+        windows = [windows arrayByAddingObject:[self fullSplitWindow]];
+
+    for (NSWindow *win in windows) {
+        for (NSToolbarItem *item in win.toolbar.items) {
+            if ([item.itemIdentifier isEqualToString:kCopilotTID] ||
+                [item.itemIdentifier isEqualToString:skCopilotTID]) {
+                if ([item.view isKindOfClass:[NSButton class]]) {
+                    [self _updateCopilotButton:(NSButton *)item.view];
+                }
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+
 - (void) setupToolbar
 {
     NSWindow *tempWindow;
@@ -405,6 +481,12 @@ if (@available(macOS 11.0, *))
 	[self.pdfKitWindow setToolbar: [self makeToolbar: kPDFKitToolbarIdentifier]];
     [[self fullSplitWindow] setToolbar: [self makeToolbar: kFullWindowToolbarIdentifier]];
    [[self htmlWindow] setToolbar: [self makeToolbar: kHtmlWindowToolbarIdentifier]];
+
+    // Observe Copilot preference changes to update toolbar icon
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(_copilotPreferencesDidChange:)
+                                                 name:TSCopilotPreferencesDidChangeNotification
+                                               object:nil];
 }
 
 // -----------------------------------------------------------------------------
@@ -1350,6 +1432,27 @@ if ([itemIdent isEqual: kSplitKKTID]) {
     
 
 
+    // --- Copilot status button ---
+    if ([itemIdent isEqual:kCopilotTID] || [itemIdent isEqual:skCopilotTID]) {
+        if (@available(macOS 11.0, *)) {
+            NSButton *copilotButton = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"sparkle"
+                                                                            accessibilityDescription:@"Copilot Status"]
+                                                         target:self
+                                                         action:@selector(showCopilotSettings:)];
+            copilotButton.bezelStyle = NSBezelStyleTexturedRounded;
+            copilotButton.bordered = YES;
+            [self _updateCopilotButton:copilotButton];
+
+            toolbarItem = [self makeToolbarItemWithItemIdentifier:itemIdent key:itemIdent customView:copilotButton];
+            menuFormRep = [[NSMenuItem alloc] init];
+            [menuFormRep setTitle:[toolbarItem label]];
+            [menuFormRep setTarget:self];
+            [menuFormRep setAction:@selector(showCopilotSettings:)];
+            [toolbarItem setMenuFormRepresentation:menuFormRep];
+            return toolbarItem;
+        }
+    }
+
 	// itemIdent refered to a toolbar item that is not provide or supported by us or cocoa
 	// Returning nil will inform the toolbar self kind of item is not supported
 	return nil;
@@ -1381,13 +1484,14 @@ if ([itemIdent isEqual: kSplitKKTID]) {
                            kLabelsTID,
                            kTemplatesID,
                            NSToolbarFlexibleSpaceItemIdentifier,
+                           kCopilotTID,
                            kSharingTID,
                            kSplitID,
                            nil];
         }
         else {
 
-            
+
 
 		return [NSArray arrayWithObjects:
 					kTypesetTID,
@@ -1398,6 +1502,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
                     kLabelsTID,
 					kTemplatesID,
 					NSToolbarFlexibleSpaceItemIdentifier,
+                    kCopilotTID,
 					kSplitID,
 					nil];
         }
@@ -1460,10 +1565,10 @@ if ([itemIdent isEqual: kSplitKKTID]) {
   
 
     if (([toolbarID isEqual:kFullWindowToolbarIdentifier]) && (! swapWindows)) {
-        
-        
+
+
         if ([self sharingExists]) {
-            
+
             return  [NSArray arrayWithObjects:
                      skTypesetTID,
                      skProgramTID,
@@ -1471,6 +1576,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
                      skTagsTID,
                      skLabelsTID, //NDS Added
                      skTemplatesID,
+                     skCopilotTID,
                      skSharingTID,
                      kSplitID,
                      NSToolbarSpaceItemIdentifier,
@@ -1487,7 +1593,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
                       nil];
         }
         else {
-            
+
             return [NSArray arrayWithObjects:
 					skTypesetTID,
 					skProgramTID,
@@ -1495,6 +1601,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 					skTagsTID,
                     skLabelsTID, //NDS Added
 					skTemplatesID,
+                    skCopilotTID,
 					kSplitID,
                     NSToolbarSpaceItemIdentifier,
                     NSToolbarSpaceItemIdentifier,
@@ -1513,10 +1620,10 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 
  
     if (([toolbarID isEqual:kFullWindowToolbarIdentifier]) && (swapWindows)) {
-        
-        
+
+
         if ([self sharingExists]) {
-            
+
             return  [NSArray arrayWithObjects:
                      kPreviousPageKKTID,
                      kNextPageKKTID,
@@ -1535,12 +1642,13 @@ if ([itemIdent isEqual: kSplitKKTID]) {
                      skTagsTID,
                      skLabelsTID, //NDS Added
                      skTemplatesID,
+                     skCopilotTID,
                      kSplitID,
                      skSharingTID,
                      nil];
         }
         else {
-            
+
             return [NSArray arrayWithObjects:
                     kPreviousPageButtonKKTID,
                     kNextPageButtonKKTID,
@@ -1559,6 +1667,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
                     skTagsTID,
                     skLabelsTID, //NDS Added
                     skTemplatesID,
+                    skCopilotTID,
                     kSplitID,
                     nil];
         }
@@ -1605,7 +1714,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 	NSString*	toolbarID = [toolbar identifier];
 
 	if ([toolbarID isEqual:kSourceToolbarIdentifier]) {
-        
+
         if ([self sharingExists]) {
 
 		return [NSArray arrayWithObjects:
@@ -1627,6 +1736,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 					kSplitID,
 					kMacrosTID,
 					kColorIndexTID,
+                    kCopilotTID,
 					NSToolbarPrintItemIdentifier,
 					NSToolbarCustomizeToolbarItemIdentifier,
 					NSToolbarFlexibleSpaceItemIdentifier,
@@ -1634,9 +1744,9 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 					NSToolbarSeparatorItemIdentifier,
 				nil];
 	}
-        
+
         else {
-            
+
             return [NSArray arrayWithObjects:
                     kTypesetTID,
 					kProgramTID,
@@ -1655,6 +1765,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 					kSplitID,
 					kMacrosTID,
 					kColorIndexTID,
+                    kCopilotTID,
 					NSToolbarPrintItemIdentifier,
 					NSToolbarCustomizeToolbarItemIdentifier,
 					NSToolbarFlexibleSpaceItemIdentifier,
@@ -1769,9 +1880,9 @@ if ([itemIdent isEqual: kSplitKKTID]) {
     
   
     if ([toolbarID isEqual:kFullWindowToolbarIdentifier]) {
-        
+
         if ([self sharingExists]) {
-            
+
             return [NSArray arrayWithObjects:
  					skTypesetTID,
 					skProgramTID,
@@ -1795,6 +1906,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 					kSplitKKTID,
                     skColorIndexTID,
                     skAutoCompleteID,
+                    skCopilotTID,
 					NSToolbarPrintItemIdentifier,
 					NSToolbarCustomizeToolbarItemIdentifier,
 					NSToolbarFlexibleSpaceItemIdentifier,
@@ -1802,9 +1914,9 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 					NSToolbarSeparatorItemIdentifier,
                     nil];
         }
-        
+
         else {
-            
+
             return [NSArray arrayWithObjects:
  					skTypesetTID,
 					skProgramTID,
@@ -1827,6 +1939,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 					kSplitKKTID,
                     skColorIndexTID,
  					skAutoCompleteID,
+                    skCopilotTID,
 					NSToolbarPrintItemIdentifier,
 					NSToolbarCustomizeToolbarItemIdentifier,
 					NSToolbarFlexibleSpaceItemIdentifier,
@@ -1834,7 +1947,7 @@ if ([itemIdent isEqual: kSplitKKTID]) {
 					NSToolbarSeparatorItemIdentifier,
                     nil];
         }
-        
+
     }
 
     if ([toolbarID isEqual:kHtmlWindowToolbarIdentifier]) {

@@ -8,6 +8,16 @@
 
 #import <Foundation/Foundation.h>
 
+// --- Notification posted when Copilot preferences change ---
+extern NSString * const TSCopilotPreferencesDidChangeNotification;
+
+// --- Connection status ---
+typedef NS_ENUM(NSInteger, TSCopilotConnectionStatus) {
+    TSCopilotConnectionStatusDisabled = 0,
+    TSCopilotConnectionStatusNotConfigured = 1,
+    TSCopilotConnectionStatusReady = 2,
+};
+
 // --- Preference Keys (stored in NSUserDefaults) ---
 extern NSString * const TSCopilotEnabledKey;       // BOOL, default NO
 extern NSString * const TSCopilotProviderKey;       // NSString: "ollama", "claude", or "github-copilot"
@@ -34,6 +44,9 @@ extern NSString * const TSCopilotSystemPromptKey;   // NSString: custom system p
 + (NSString *)apiKeyForProvider:(NSString *)provider;
 + (BOOL)setApiKey:(NSString *)key forProvider:(NSString *)provider;
 + (BOOL)deleteApiKeyForProvider:(NSString *)provider;
+
+// --- Connection status ---
++ (TSCopilotConnectionStatus)connectionStatus;
 
 // --- Settings panel ---
 + (void)showSettingsPanel;

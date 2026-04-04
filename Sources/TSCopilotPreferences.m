@@ -7,6 +7,9 @@
 #import "TSCopilotPreferences.h"
 #import "TSCopilotAPIClient.h"
 
+// --- Notification ---
+NSString * const TSCopilotPreferencesDidChangeNotification = @"TSCopilotPreferencesDidChange";
+
 // --- Preference Keys ---
 NSString * const TSCopilotEnabledKey     = @"CopilotEnabled";
 NSString * const TSCopilotProviderKey    = @"CopilotProvider";
@@ -86,6 +89,35 @@ static NSString * const kCredentialServicePrefix = @"com.TeXForge.Copilot.";
            @"predict what the user wants to type next. "
            @"Return ONLY the completion text, with no explanation, no markdown formatting, "
            @"and no repetition of existing text.";
+}
+
+#pragma mark - Connection status
+
++ (TSCopilotConnectionStatus)connectionStatus
+{
+    if (![self isEnabled])
+        return TSCopilotConnectionStatusDisabled;
+
+    NSString *prov = [self provider];
+    if ([prov isEqualToString:@"github-copilot"]) {
+        return [TSCopilotAPIClient hasValidGitHubCopilotToken]
+            ? TSCopilotConnectionStatusReady
+            : TSCopilotConnectionStatusNotConfigured;
+    }
+    if ([prov isEqualToString:@"claude"]) {
+        NSString *key = [self apiKeyForProvider:@"claude"];
+        return (key.length > 0)
+            ? TSCopilotConnectionStatusReady
+            : TSCopilotConnectionStatusNotConfigured;
+    }
+    // Ollama is local — always considered ready if enabled
+    return TSCopilotConnectionStatusReady;
+}
+
++ (void)_postChangeNotification
+{
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:TSCopilotPreferencesDidChangeNotification object:nil];
 }
 
 #pragma mark - Credential File Storage
@@ -316,6 +348,7 @@ static NSPanel *_settingsPanel = nil;
 {
     // Live toggle — saved immediately
     [SUD setBool:(sender.state == NSControlStateValueOn) forKey:TSCopilotEnabledKey];
+    [self _postChangeNotification];
 }
 
 + (void)_providerChanged:(NSPopUpButton *)sender
@@ -360,6 +393,7 @@ static NSPanel *_settingsPanel = nil;
         // Sign out
         [TSCopilotAPIClient signOutGitHubCopilot];
         sender.title = @"Sign In with GitHub";
+        [self _postChangeNotification];
         return;
     }
 
@@ -370,6 +404,7 @@ static NSPanel *_settingsPanel = nil;
         sender.enabled = YES;
         if (success) {
             sender.title = @"Signed In (Sign Out)";
+            [self _postChangeNotification];
             NSAlert *alert = [[NSAlert alloc] init];
             alert.messageText = @"GitHub Copilot connected";
             alert.informativeText = @"You are now signed in to GitHub Copilot.";
@@ -417,6 +452,7 @@ static NSPanel *_settingsPanel = nil;
         [self setApiKey:newKey forProvider:providerPopup.titleOfSelectedItem];
     }
 
+    [self _postChangeNotification];
     [_settingsPanel close];
 }
 

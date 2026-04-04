@@ -269,3 +269,11 @@ tiToolTipHtmlURLField            = "URL";
 tiLabelHtmlSearch             = "検索";
 tiPaletteLabelHtmlSearch      = "検索";
 tiToolTipHtmlSearch           = "検索";
+
+tiLabelCopilot                = "Copilot";
+tiPaletteLabelCopilot         = "Copilot Status";
+tiToolTipCopilot              = "AI Copilot status (click for settings)";
+
+tiLabelCopilotSplit           = "Copilot";
+tiPaletteLabelCopilotSplit    = "Copilot Status";
+tiToolTipCopilotSplit         = "AI Copilot status (click for settings)";
