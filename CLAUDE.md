@@ -79,6 +79,21 @@ The app follows the standard `NSDocumentController` → `NSDocument` → `NSWind
 - **OgreKit 2.1.12** — Regex-based find/replace (embedded in app bundle)
 - Both are code-signed on copy during build
 
+### Sparkle Auto-Update (currently disabled)
+
+Automatic update checking is disabled at multiple levels:
+
+1. **Compile-time** — `Sources/UseSparkle.h`: `#define USESPARKLE` is commented out, so all Sparkle code in `TSPreferences.m` is excluded via `#ifdef`
+2. **Info.plist** — `Resources/Info.plist`: `SUFeedURL` is empty (no appcast URL configured)
+3. **Factory defaults** — `Resources/Shellscripts/FactoryDefaults.plist`: `SparkleAutomaticUpdate` is `false`
+
+To re-enable automatic update checking:
+1. Uncomment `#define USESPARKLE` in `Sources/UseSparkle.h`
+2. Set `SUFeedURL` in `Resources/Info.plist` to a valid appcast URL
+3. Optionally set `SparkleAutomaticUpdate` to `true` in `FactoryDefaults.plist` (or let users enable it in Preferences)
+
+Related preference keys (defined in `globals.h/m`): `SparkleAutomaticUpdateKey`, `SparkleIntervalKey`. The preferences UI for Sparkle is in `TSPreferences.m` (`sparkleAutomaticCheck:` action). A legacy manual update checker also exists in `TSAppDelegate.m` (`checkForUpdate:`) that hits the original TeXShop server.
+
 ## Conventions
 
 - Objective-C with Cocoa/AppKit patterns (delegates, IBOutlet/IBAction, NSNotification)

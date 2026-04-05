@@ -1348,6 +1348,8 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>TSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
 	<key>SUFeedURL</key>
 	<string></string>
 	<key>UTExportedTypeDeclarations</key>
