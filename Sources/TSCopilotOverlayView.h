@@ -10,7 +10,7 @@
 
 @class TSTextView;
 
-@interface TSCopilotOverlayView : NSView
+@interface TSCopilotOverlayView : NSView <NSLayoutManagerDelegate>
 
 @property (weak) TSTextView *textView;
 @property (copy, readonly) NSString *suggestionText;

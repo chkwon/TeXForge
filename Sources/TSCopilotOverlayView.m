@@ -7,7 +7,12 @@
 #import "TSCopilotPreferences.h"
 #import "TSTextView.h"
 
-@implementation TSCopilotOverlayView
+@implementation TSCopilotOverlayView {
+    NSUInteger _ghostLineCount;
+    CGFloat _cursorLineFragmentY;
+    CGFloat _extraLineSpacing;
+    __weak id<NSLayoutManagerDelegate> _savedLayoutDelegate;
+}
 
 - (instancetype)initWithTextView:(TSTextView *)textView
 {
@@ -38,7 +43,28 @@
 
 - (void)dealloc
 {
+    // Clean up layout manager delegate if still set
+    TSTextView *tv = self.textView;
+    NSLayoutManager *lm = [tv layoutManager];
+    if (lm.delegate == self) {
+        lm.delegate = nil;
+    }
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+#pragma mark - NSLayoutManagerDelegate
+
+- (CGFloat)layoutManager:(NSLayoutManager *)layoutManager
+    lineSpacingAfterGlyphAtIndex:(NSUInteger)glyphIndex
+    withProposedLineFragmentRect:(NSRect)rect
+{
+    if (_extraLineSpacing <= 0) return 0;
+
+    // Add extra spacing after the cursor's line fragment to push text down
+    if (fabs(rect.origin.y - _cursorLineFragmentY) < 1.0) {
+        return _extraLineSpacing;
+    }
+    return 0;
 }
 
 #pragma mark - Public API
@@ -51,14 +77,75 @@
     }
     _suggestionText = [text copy];
     _suggestionLocation = location;
+
+    // Count lines and set up layout manager delegate for multi-line push-down
+    NSArray *lines = [text componentsSeparatedByString:@"\n"];
+    _ghostLineCount = lines.count;
+    _extraLineSpacing = 0;
+    _cursorLineFragmentY = -1;
+
+    TSTextView *tv = self.textView;
+    NSLayoutManager *lm = [tv layoutManager];
+    NSTextContainer *tc = [tv textContainer];
+
+    if (_ghostLineCount > 1 && lm && tc) {
+        NSString *fullText = [tv string];
+        NSFont *font = [tv font] ?: [NSFont userFixedPitchFontOfSize:12.0];
+        CGFloat lineHeight = [lm defaultLineHeightForFont:font];
+        _extraLineSpacing = (_ghostLineCount - 1) * lineHeight;
+
+        // Precompute cursor line fragment Y before installing delegate
+        if (location < fullText.length) {
+            NSRange glyphRange = [lm glyphRangeForCharacterRange:NSMakeRange(location, 1)
+                                            actualCharacterRange:NULL];
+            if (glyphRange.location < [lm numberOfGlyphs]) {
+                NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:glyphRange.location
+                                                       effectiveRange:NULL];
+                _cursorLineFragmentY = lineRect.origin.y;
+            }
+        } else if ([lm numberOfGlyphs] > 0) {
+            // End of text — use last glyph's line fragment
+            NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:[lm numberOfGlyphs] - 1
+                                                   effectiveRange:NULL];
+            _cursorLineFragmentY = lineRect.origin.y;
+        }
+
+        if (_cursorLineFragmentY >= 0) {
+            _savedLayoutDelegate = lm.delegate;
+            lm.delegate = self;
+            NSUInteger textLen = fullText.length;
+            if (location < textLen) {
+                [lm invalidateLayoutForCharacterRange:NSMakeRange(location, textLen - location)
+                                 actualCharacterRange:NULL];
+            }
+        }
+    }
+
     [self setNeedsDisplay:YES];
 }
 
 - (void)dismiss
 {
     if (_suggestionText == nil) return;
+
+    // Remove layout manager delegate and restore normal spacing
+    TSTextView *tv = self.textView;
+    NSLayoutManager *lm = [tv layoutManager];
+    if (_extraLineSpacing > 0 && lm && lm.delegate == self) {
+        lm.delegate = _savedLayoutDelegate;
+        _savedLayoutDelegate = nil;
+        NSUInteger textLen = [[tv string] length];
+        if (textLen > 0) {
+            [lm invalidateLayoutForCharacterRange:NSMakeRange(0, textLen)
+                             actualCharacterRange:NULL];
+        }
+    }
+
     _suggestionText = nil;
     _suggestionLocation = NSNotFound;
+    _ghostLineCount = 0;
+    _extraLineSpacing = 0;
+    _cursorLineFragmentY = -1;
     [self setNeedsDisplay:YES];
 }
 
@@ -167,22 +254,26 @@
     CGFloat x = insertionRect.origin.x;
     CGFloat y = insertionRect.origin.y;
 
-    // Get the remaining width on the current line
-    NSRect lineFragmentRect;
-    if (glyphIndex < [layoutManager numberOfGlyphs]) {
-        lineFragmentRect = [layoutManager lineFragmentUsedRectForGlyphAtIndex:glyphIndex
-                                                               effectiveRange:NULL];
-    } else if (glyphIndex > 0) {
-        lineFragmentRect = [layoutManager lineFragmentUsedRectForGlyphAtIndex:glyphIndex - 1
-                                                               effectiveRange:NULL];
-    } else {
-        lineFragmentRect = NSZeroRect;
-    }
+    // Background masking constants
+    NSColor *bgColor = [tv backgroundColor];
+    CGFloat viewWidth = self.bounds.size.width;
+    CGFloat leftMargin = containerOrigin.x + textContainer.lineFragmentPadding;
 
     NSLog(@"[CopilotOverlay] drawing %lu lines at (%.1f, %.1f)", (unsigned long)lines.count, x, y);
 
     for (NSUInteger i = 0; i < lines.count; i++) {
         NSString *line = lines[i];
+
+        // Fill background behind ghost text to prevent overlap with existing text
+        NSRect bgRect;
+        if (i == 0) {
+            bgRect = NSMakeRect(x, y, viewWidth - x, lineHeight);
+        } else {
+            bgRect = NSMakeRect(leftMargin, y, viewWidth - leftMargin, lineHeight);
+        }
+        [bgColor set];
+        NSRectFill(bgRect);
+
         if (line.length == 0 && i > 0) {
             y += lineHeight;
             continue;
@@ -194,7 +285,6 @@
             drawPoint = NSMakePoint(x, y);
         } else {
             // Subsequent lines: draw at the left margin (indented to text container inset)
-            CGFloat leftMargin = containerOrigin.x + textContainer.lineFragmentPadding;
             drawPoint = NSMakePoint(leftMargin, y);
         }
 
