@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build and release (e.g., v1.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    steps:
+      - name: Determine version tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Building for tag: $TAG"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+
+      - name: Build Release
+        run: |
+          chmod +x build.sh
+          ./build.sh Release
+
+      - name: Verify build output
+        run: |
+          APP="build/Release/TeXForge.app"
+          test -d "$APP" || { echo "ERROR: TeXForge.app not found"; exit 1; }
+          codesign --verify --deep "$APP"
+          echo "App bundle verified successfully"
+
+      - name: Package zip
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          cd build/Release
+          ditto -c -k --sequesterRsrc --keepParent TeXForge.app "TeXForge-${TAG}.zip"
+          ls -lh "TeXForge-${TAG}.zip"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          gh release create "$TAG" \
+            "build/Release/TeXForge-${TAG}.zip" \
+            --title "$TAG" \
+            --generate-notes
