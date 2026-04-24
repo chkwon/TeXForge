@@ -23,7 +23,6 @@
  */
 
 #import "UseMitsu.h"
-#import "UseSparkle.h"
 
 #import <AppKit/AppKit.h>
 
