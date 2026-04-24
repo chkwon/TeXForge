@@ -54,15 +54,13 @@ extern NSPanel *pageNumberWindow;
 - (id)initWithContentRect:(NSRect)contentRect styleMask:(NSWindowStyleMask)styleMask backing:(NSBackingStoreType)backingType defer:(BOOL)flag
 {
 	id		result;
-	NSColor	*backColor;
-    
+
  	result = [super initWithContentRect:contentRect styleMask:styleMask backing:backingType defer:flag];
-    
+
     self.firstTime = YES;
 
-	// backColor = [NSColor lightGrayColor];
-	backColor = [NSColor colorWithCalibratedRed:0.9 green:0.9 blue:0.9 alpha: 1.0];
-	[self setBackgroundColor: backColor];
+	[self setTitlebarAppearsTransparent:YES];
+	[self setBackgroundColor:TSWindowFrameColor()];
 
 	CGFloat alpha = [SUD floatForKey: PreviewWindowAlphaKey];
 	if (alpha < 0.999)
