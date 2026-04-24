@@ -38,6 +38,8 @@
 {
 	id  result;
 	result = [super initWithContentRect:contentRect styleMask:styleMask backing:backingType defer:flag];
+	[self setTitlebarAppearsTransparent:YES];
+	[self setBackgroundColor:TSWindowFrameColor()];
 	CGFloat alpha = [SUD floatForKey: SourceWindowAlphaKey];
 	if (alpha < 0.999)
         //[self setAlphaValue:alpha]; // removed by Terada

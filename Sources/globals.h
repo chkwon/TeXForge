@@ -708,3 +708,5 @@ extern NSArray *userCommandsToSpellCheck;
 extern NSPoint menuPoint;
 // extern double ppx, ppy;
 
+NSColor *TSWindowFrameColor(void);
+

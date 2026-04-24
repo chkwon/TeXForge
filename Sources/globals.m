@@ -455,3 +455,11 @@ NSDictionary *darkColors;
 
 NSPoint menuPoint;
 //double ppx, ppy;
+
+NSColor *TSWindowFrameColor(void)
+{
+    return [NSColor colorWithSRGBRed:0xFF/255.0
+                               green:0xDC/255.0
+                                blue:0xC7/255.0
+                               alpha:1.0];
+}
