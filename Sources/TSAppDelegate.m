@@ -37,6 +37,7 @@
 #import "TSTextEditorWindow.h"
 #import "TSFullSplitWindow.h"
 #import "GlobalData.h"
+#import "TSGitHubUpdater.h"
 #import "TSColorSupport.h"
 
 
@@ -64,6 +65,8 @@
 @interface TSAppDelegate (Private)
 
 - (void)mirrorPath:(NSString *)srcPath toPath:(NSString *)dstPath;
+- (void)retargetLegacyUpdateMenuItems;
+- (void)retargetLegacyUpdateMenuItemsInMenu:(NSMenu *)menu;
 
 @end
 
@@ -836,6 +839,7 @@
 										  green: [SUD floatForKey:PdfPageBack_GKey] blue: [SUD floatForKey:PdfPageBack_BKey]
 										  alpha: 1];
 	// [PreviewBackgroundColor retain];
+    [self retargetLegacyUpdateMenuItems];
 	[self finishMenuKeyEquivalentsConfigure];
 
 }
@@ -1372,66 +1376,14 @@
         [textFinder setShouldHackFindMenu:NO];
 }
 
-// The routine below is no longer used; it has been replaced by Sparkle. Koch, 1/11/2009.
+- (IBAction)checkForUpdates:(id)sender
+{
+    [self checkForUpdate:sender];
+}
 
-// Update Checker Nov 05 04; Martin Kerz
-// This code simply fixes a text file from a fixed URL, and parses it
-// for the version of the latest TeXShop releae. It then compares it to
-// the CFBundleVersion of the running application (the comparision is
-// pretty dumb right now, just a simple case insensitive string compare).
-// If the online TeXShop version is newer, we offer the user to
-// fetch the new version, which is done by grabbing another fixed
-// URL through the NSWorkSpaceManager.
-//
-// This approach is quite simple but also a bit limited. The version compare
-// should be improved. Also, the remote file with the version (a plist)
-// could also contain the URL of the new .dmg. That way we don't have
-// to use a fixed filename for new TeXShop releases.
-//
-// We could also add a preference to do automatic checks at regular time intervals.
-// And of course an fully automated in-place updated would be cool, too, but
-// you got to ask yourself if it's really worth the whole effort ;-)
 - (IBAction)checkForUpdate:(id)sender
 {
-	NSString *currentVersion = [[[NSBundle bundleForClass:[self class]]
-		infoDictionary] objectForKey:@"CFBundleVersion"];
-		
-	NSDictionary *texshopVersionDictionary = [NSDictionary dictionaryWithContentsOfURL:
-		[NSURL URLWithString:@"http://pages.uoregon.edu/koch/texshop/texshop-current.txt"]];
-
-	NSString *latestVersion = [texshopVersionDictionary valueForKey:@"TeXShop"];
-	
-	NSInteger button;
-	if(latestVersion == nil){
-		NSRunAlertPanel(NSLocalizedString(@"Error",
-										  @"Error"),
-						NSLocalizedString(@"There was an error checking for updates.",
-										  @"There was an error checking for updates."),
-										  @"OK", nil, nil);
-		return;
-	}
-
-	if([latestVersion caseInsensitiveCompare: currentVersion] != NSOrderedDescending)
-	{
-		NSRunAlertPanel(NSLocalizedString(@"Your copy of TeXShop is up-to-date",
-										  @"Your copy of TeXShop is up-to-date"),
-						NSLocalizedString(@"You have the most recent version of TeXShop.",
-										  @"You have the most recent version of TeXShop."),
-										  @"OK", nil, nil);
-	}
-	else
-	{
-		button = NSRunAlertPanel(NSLocalizedString(@"New version available",
-													   @"New version available"),
-									 [NSString stringWithFormat:
-										 NSLocalizedString(@"A new version of TeXShop is available (version %@). Would you like to download it now?",
-														   @"A new version of TeXShop is available (version %@). Would you like to download it now?"), latestVersion],
-									 @"OK", @"Cancel", nil);
-		if (button == NSOKButton) {
-			[[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"http://pages.uoregon.edu/koch/texshop/texshop.zip"]];
-		}
-	}
-
+    [[TSGitHubUpdater sharedUpdater] checkForUpdates];
 }
 
 
@@ -1456,6 +1408,27 @@
 
 
 @implementation TSAppDelegate (Private)
+
+- (void)retargetLegacyUpdateMenuItems
+{
+    [self retargetLegacyUpdateMenuItemsInMenu:[NSApp mainMenu]];
+}
+
+- (void)retargetLegacyUpdateMenuItemsInMenu:(NSMenu *)menu
+{
+    if (menu == nil) {
+        return;
+    }
+
+    for (NSMenuItem *item in [menu itemArray]) {
+        if ([item action] == @selector(checkForUpdates:)) {
+            [item setTarget:self];
+        }
+        if ([item hasSubmenu]) {
+            [self retargetLegacyUpdateMenuItemsInMenu:[item submenu]];
+        }
+    }
+}
 
 // Recursively copy the file/folder at srcPath to dstPath.
 // This creates target folders as needed, and will not overwrite
@@ -1562,4 +1535,3 @@
 
 
 @end
-

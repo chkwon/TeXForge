@@ -58,6 +58,7 @@
 // - (void)setForPreview: (BOOL)value;
 - (BOOL)applicationShouldOpenUntitledFile:(NSApplication *)sender;
 - (void)ogreKitWillHackFindMenu:(OgreTextFinder*)textFinder;
+- (IBAction)checkForUpdates:(id)sender;
 - (IBAction)checkForUpdate:(id)sender; // Update checker
 - (void)configureMovieMenu;
 - (IBAction)doMovie:(id)sender;

@@ -24,7 +24,6 @@
  */
 
 #import "UseMitsu.h"
-#import "UseSparkle.h"
 
 #import "TSPreferences.h"
 #import "TSWindowManager.h"
@@ -34,9 +33,6 @@
 #import "TSAppDelegate.h" // mitsu 1.29 (O)
 #import "TSDocument.h"
 #import "TSConsoleWindow.h"
-#ifdef USESPARKLE
-    #import <Sparkle/SUUpdater.h>
-#endif
 
 //#import "MyPDFView.h" // mitsu 1.29 (O)
 
@@ -126,6 +122,18 @@ Loads the .nib file if necessary, fills all the controls with the values from th
 
     [self updateControlsFromUserDefaults:SUD];
     [self PrepareColorPane:SUD];
+    if (_sparkleAutomaticButton) {
+        [_sparkleAutomaticButton setHidden:YES];
+        [_sparkleAutomaticButton setEnabled:NO];
+    }
+    if (_sparkleIntervalMatrix) {
+        [_sparkleIntervalMatrix setHidden:YES];
+        [_sparkleIntervalMatrix setEnabled:NO];
+    }
+    NSView *sparkleContainer = [[_sparkleAutomaticButton superview] superview];
+    if (sparkleContainer) {
+        [sparkleContainer setHidden:YES];
+    }
     
     //_sourceBackgroundColorWell.enabled = NO;
     //_sourceBackgroundColorWell.highlighted = NO;
@@ -1858,53 +1866,22 @@ integerForKey:PdfCopyTypeKey] forKey:PdfCopyTypeKey];
 	[SUD setBool:[(NSCell *)sender state] forKey:SavePSEnabledKey];
 }
 
-#ifdef USESPARKLE
-
 /*" Sparkle Actions 
 "*/
 - (IBAction)sparkleAutomaticCheck:sender
 {
-    sparkleTouched = YES;
-    oldSparkleAutomaticUpdate = [SUD boolForKey:SparkleAutomaticUpdateKey];
-    
-    BOOL theValue = [(NSCell *) sender state];
-    
-    // register the undo message first
-    [[_undoManager prepareWithInvocationTarget:SUD] setBool:[SUD boolForKey:SparkleAutomaticUpdateKey] forKey:SparkleAutomaticUpdateKey];
-    [_sparkleIntervalMatrix setEnabled: theValue];
-    [SUD setBool:theValue forKey:SparkleAutomaticUpdateKey];
-    
-    
-    [[SUUpdater sharedUpdater] setAutomaticallyChecksForUpdates: theValue ];
-    
+    (void)sender;
+    sparkleTouched = NO;
+    [_sparkleIntervalMatrix setEnabled:NO];
+    [SUD setBool:NO forKey:SparkleAutomaticUpdateKey];
 }
 
 - (IBAction)sparkleInterval:sender
 {
-    sparkleTouched = YES;
-    oldSparkleInterval = [SUD integerForKey: SparkleIntervalKey];
-    
-    // register the undo message first
-    [[_undoManager prepareWithInvocationTarget:SUD] setInteger:[SUD integerForKey:SparkleIntervalKey] forKey:SparkleIntervalKey];
-    
-    [SUD setInteger:[[sender selectedCell] tag] forKey:SparkleIntervalKey];
-    
-    switch ([[sender selectedCell] tag])
-    {
-        case 1: [[SUUpdater sharedUpdater] setUpdateCheckInterval: 86400];
-                break;
-            
-        case 2: [[SUUpdater sharedUpdater] setUpdateCheckInterval: 604800];
-            break;
-            
-        case 3: [[SUUpdater sharedUpdater] setUpdateCheckInterval: 2629800];
-            break;
-    }
- 
-    
+    (void)sender;
+    sparkleTouched = NO;
+    [SUD setInteger:0 forKey:SparkleIntervalKey];
 }
-
-#endif
 
 
 
@@ -1918,11 +1895,6 @@ integerForKey:PdfCopyTypeKey] forKey:PdfCopyTypeKey];
     // register the undo message first
     [[_undoManager prepareWithInvocationTarget:SUD] setBool:[SUD boolForKey:NewToolbarIconsKey] forKey:NewToolbarIconsKey];
     [SUD setBool:theValue forKey:NewToolbarIconsKey];
-    
-#ifdef USESPARKLE
-    [[SUUpdater sharedUpdater] setAutomaticallyChecksForUpdates: theValue ];
-#endif
-    
 }
 
 
@@ -2321,25 +2293,6 @@ A tag of 0 means "no", a tag of 1 means "yes".
 		[SUD setBool:oldBibDeskComplete forKey:BibDeskCompletionKey];
 		[[NSNotificationCenter defaultCenter] postNotificationName:DocumentBibDeskCompleteNotification object:self];
 	}
-    
-#ifdef USESPARKLE
-    if (sparkleTouched) {
-        [[SUUpdater sharedUpdater] setAutomaticallyChecksForUpdates: oldSparkleAutomaticUpdate];
-        
-        switch (oldSparkleInterval)
-        {
-            case 1: [[SUUpdater sharedUpdater] setUpdateCheckInterval: 86400];
-                break;
-                
-            case 2: [[SUUpdater sharedUpdater] setUpdateCheckInterval: 604800];
-                break;
-                
-            case 3: [[SUUpdater sharedUpdater] setUpdateCheckInterval: 2629800];
-                break;
-        }
-    }
-#endif
-   
     
 	// added by mitsu --(G) TSEncodingSupport
 	if (encodingTouched) {
