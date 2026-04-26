@@ -24,34 +24,44 @@ static id sharedColorSupport = nil;
     return sharedColorSupport;
 }
 
-// A user might remove ALL color styles from Library/TeXShop/Colors
-// The routine below checks whether LiteTheme.plist and DarkTheme.plist exist in this directory
-// If not, it restores them with default files
-- (void)checkAndRestoreDefaults;
+// Sync every bundled theme into ~/Library/TeXForge/Themes/ on first launch (or any launch where
+// the file is missing). Existing files are never overwritten, so users keep their edits and any
+// themes they have installed themselves.
+//
+// Two sources are consulted:
+//   1. Top-level Resources/*.plist (LiteTheme.plist and DarkTheme.plist live here).
+//   2. Resources/TeXShop/Themes/*.plist (folder reference — Dracula, SolarizedDark, Monokai, etc.).
+// A plist qualifies as a theme only if it has a top-level EditorBackground key, which excludes
+// FactoryDefaults.plist and other unrelated plists that happen to ship in Resources.
+- (void)checkAndRestoreDefaults
 {
-    NSString *reserveLitePath, *reserveDarkPath;
-    
     NSFileManager *fileManager = [NSFileManager defaultManager];
-    NSString *newColorPath = [ColorPath stringByExpandingTildeInPath];
-    NSString* liteColorPath = [[newColorPath stringByAppendingString:@"/"] stringByAppendingString: @"LiteTheme.plist"];
-    NSString* darkColorPath = [[newColorPath stringByAppendingString:@"/"] stringByAppendingString: @"DarkTheme.plist"];
-    
-    if (! [fileManager fileExistsAtPath: liteColorPath])
-    {
-        reserveLitePath = [[NSBundle mainBundle] pathForResource:@"LiteTheme" ofType:@"plist"];
-        [fileManager copyItemAtPath: reserveLitePath toPath: liteColorPath error: nil];
+    NSString *userThemesDir = [ColorPath stringByExpandingTildeInPath];
+
+    if (! [fileManager fileExistsAtPath: userThemesDir]) {
+        [fileManager createDirectoryAtPath: userThemesDir
+               withIntermediateDirectories: YES
+                                attributes: nil
+                                     error: nil];
     }
-    if (! [fileManager fileExistsAtPath: darkColorPath])
-    {
-        reserveDarkPath = [[NSBundle mainBundle] pathForResource:@"DarkTheme" ofType:@"plist"];
-        [fileManager copyItemAtPath: reserveDarkPath toPath: darkColorPath error: nil];
-    }
-    NSString* solarizedLitePath = [[newColorPath stringByAppendingString:@"/"] stringByAppendingString: @"SolarizedLite.plist"];
-    if (! [fileManager fileExistsAtPath: solarizedLitePath])
-    {
-        NSString *reserveSolarizedLitePath = [[NSBundle mainBundle] pathForResource:@"SolarizedLite" ofType:@"plist"];
-        if (reserveSolarizedLitePath)
-            [fileManager copyItemAtPath: reserveSolarizedLitePath toPath: solarizedLitePath error: nil];
+
+    NSMutableArray<NSString *> *candidatePaths = [NSMutableArray array];
+
+    NSArray *topLevel = [[NSBundle mainBundle] pathsForResourcesOfType:@"plist" inDirectory:nil];
+    if (topLevel) [candidatePaths addObjectsFromArray: topLevel];
+
+    NSArray *inThemesDir = [[NSBundle mainBundle] pathsForResourcesOfType:@"plist" inDirectory:@"TeXShop/Themes"];
+    if (inThemesDir) [candidatePaths addObjectsFromArray: inThemesDir];
+
+    for (NSString *bundlePath in candidatePaths) {
+        NSDictionary *contents = [NSDictionary dictionaryWithContentsOfFile: bundlePath];
+        if (! contents) continue;
+        if (! [contents objectForKey: @"EditorBackground"]) continue;
+
+        NSString *destPath = [userThemesDir stringByAppendingPathComponent: [bundlePath lastPathComponent]];
+        if ([fileManager fileExistsAtPath: destPath]) continue;
+
+        [fileManager copyItemAtPath: bundlePath toPath: destPath error: nil];
     }
 }
 

@@ -39,15 +39,31 @@
 	id  result;
 	result = [super initWithContentRect:contentRect styleMask:styleMask backing:backingType defer:flag];
 	[self setTitlebarAppearsTransparent:YES];
-	[self setBackgroundColor:TSWindowFrameColor()];
+	[self applyThemedFrameTintFromDictionary:nil];
 	CGFloat alpha = [SUD floatForKey: SourceWindowAlphaKey];
 	if (alpha < 0.999)
         //[self setAlphaValue:alpha]; // removed by Terada
-        [self performSelector:@selector(setAlpha:) withObject:[NSNumber numberWithFloat:alpha] afterDelay:0.5]; // added by Terada   
+        [self performSelector:@selector(setAlpha:) withObject:[NSNumber numberWithFloat:alpha] afterDelay:0.5]; // added by Terada
     [self performSelector:@selector(refreshTitle) withObject:nil afterDelay:1]; // added by Terada
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshTitle) name:NSApplicationDidBecomeActiveNotification object:NSApp]; // added by Terada
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleThemeColorChange:) name:SourceColorChangedNotification object:nil];
     self.wasClosed = NO;
 	return result;
+}
+
+- (void)applyThemedFrameTintFromDictionary:(NSDictionary *)dict
+{
+    BOOL isDark = NO;
+    if (@available(macOS 10.14, *)) {
+        isDark = [self.effectiveAppearance.name isEqualToString: NSAppearanceNameDarkAqua];
+    }
+    [self setBackgroundColor: TSWindowFrameColorForDictionary(dict, isDark)];
+}
+
+- (void)handleThemeColorChange:(NSNotification *)note
+{
+    NSDictionary *dict = [note.userInfo isKindOfClass: [NSDictionary class]] ? note.userInfo : nil;
+    [self applyThemedFrameTintFromDictionary: dict];
 }
 
 -(void)setAlpha:(NSNumber*)alpha // added by Terada

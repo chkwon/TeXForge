@@ -36,11 +36,28 @@
 	self.firstResize = NO;
 	result = [super initWithContentRect:contentRect styleMask:styleMask backing:backingType defer:flag];
 	[self setTitlebarAppearsTransparent:YES];
-	[self setBackgroundColor:TSWindowFrameColor()];
+	[self applyThemedFrameTintFromDictionary:nil];
  	CGFloat alpha = [SUD floatForKey: ConsoleWindowAlphaKey];
 	if (alpha < 0.999)
 		 [self setAlphaValue:alpha];
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleThemeColorChange:) name:SourceColorChangedNotification object:nil];
 	return result;
+}
+
+
+- (void)applyThemedFrameTintFromDictionary:(NSDictionary *)dict
+{
+    BOOL isDark = NO;
+    if (@available(macOS 10.14, *)) {
+        isDark = [self.effectiveAppearance.name isEqualToString: NSAppearanceNameDarkAqua];
+    }
+    [self setBackgroundColor: TSWindowFrameColorForDictionary(dict, isDark)];
+}
+
+- (void)handleThemeColorChange:(NSNotification *)note
+{
+    NSDictionary *dict = [note.userInfo isKindOfClass: [NSDictionary class]] ? note.userInfo : nil;
+    [self applyThemedFrameTintFromDictionary: dict];
 }
 
 - (void) doChooseMethod: sender

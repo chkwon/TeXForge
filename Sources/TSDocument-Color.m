@@ -106,15 +106,27 @@
     
     [textView1 setTextColor: myTextColor];
     [textView2 setTextColor: myTextColor];
-    
-    
+
+    // Line number gutter: match the editor background, use a muted text color so numbers
+    // stay legible without competing with the source.
+    NSColor *editorBg = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"EditorBackground"];
+    NSColor *gutterTextColor = [myTextColor blendedColorWithFraction:0.55 ofColor:editorBg];
+    [self.lineNumberView1 setBackgroundColor: editorBg];
+    [self.lineNumberView2 setBackgroundColor: editorBg];
+    [self.lineNumberView1 setTextColor: gutterTextColor];
+    [self.lineNumberView2 setTextColor: gutterTextColor];
+
+
     // LOG WINDOW
-    
+
     myBackgroundColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"LogBackground"];
     myTextColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"LogText"];
-    
+
     [self.logTextView setTextColor: myTextColor];
     [self.logTextView setBackgroundColor: myBackgroundColor];
+    NSColor *logGutterTextColor = [myTextColor blendedColorWithFraction:0.55 ofColor:myBackgroundColor];
+    [self.logLineNumberView setBackgroundColor: myBackgroundColor];
+    [self.logLineNumberView setTextColor: logGutterTextColor];
     
     // CONSOLE WINDOW
     

@@ -463,3 +463,19 @@ NSColor *TSWindowFrameColor(void)
                                 blue:0xC7/255.0
                                alpha:1.0];
 }
+
+NSColor *TSWindowFrameColorForDictionary(NSDictionary * _Nullable themeDict, BOOL darkAppearance)
+{
+    NSDictionary *effective = themeDict;
+    if (! effective) {
+        effective = darkAppearance ? darkColors : liteColors;
+    }
+    NSArray *rgba = [effective objectForKey: @"EditorBackground"];
+    if ([rgba isKindOfClass: [NSArray class]] && rgba.count >= 3) {
+        return [NSColor colorWithSRGBRed: [rgba[0] doubleValue]
+                                   green: [rgba[1] doubleValue]
+                                    blue: [rgba[2] doubleValue]
+                                   alpha: 1.0];
+    }
+    return TSWindowFrameColor();
+}

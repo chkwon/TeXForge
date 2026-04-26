@@ -48,6 +48,8 @@
 		40162B310F1873F200E9336E /* NoodleLineNumberView.m in Sources */ = {isa = PBXBuildFile; fileRef = 40162B2D0F1873F200E9336E /* NoodleLineNumberView.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
 		4016DD872109FC6200745019 /* TSColorSupport.m in Sources */ = {isa = PBXBuildFile; fileRef = 4016DD852109FC6200745019 /* TSColorSupport.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
 		4016DD882109FC6200745019 /* TSColorSupport.h in Headers */ = {isa = PBXBuildFile; fileRef = 4016DD862109FC6200745019 /* TSColorSupport.h */; };
+		4016DD8B2109FC6200745019 /* TSVSCodeThemeImporter.m in Sources */ = {isa = PBXBuildFile; fileRef = 4016DD892109FC6200745019 /* TSVSCodeThemeImporter.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
+		4016DD8C2109FC6200745019 /* TSVSCodeThemeImporter.h in Headers */ = {isa = PBXBuildFile; fileRef = 4016DD8A2109FC6200745019 /* TSVSCodeThemeImporter.h */; };
 		4017CF9B266454D700981011 /* TSDocument-SyncConTeXt.m in Sources */ = {isa = PBXBuildFile; fileRef = 4017CF9A266454D700981011 /* TSDocument-SyncConTeXt.m */; };
 		401B9EC11F8C568300B48034 /* TSDocument-SyncOld.m in Sources */ = {isa = PBXBuildFile; fileRef = 401B9EC01F8C568300B48034 /* TSDocument-SyncOld.m */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
 		401EF0760D0B3F8800203D7B /* MyDragView.h in Headers */ = {isa = PBXBuildFile; fileRef = 401EF0740D0B3F8800203D7B /* MyDragView.h */; };
@@ -515,6 +517,8 @@
 		40162B2D0F1873F200E9336E /* NoodleLineNumberView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = NoodleLineNumberView.m; sourceTree = "<group>"; };
 		4016DD852109FC6200745019 /* TSColorSupport.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSColorSupport.m; sourceTree = "<group>"; };
 		4016DD862109FC6200745019 /* TSColorSupport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSColorSupport.h; sourceTree = "<group>"; };
+		4016DD892109FC6200745019 /* TSVSCodeThemeImporter.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = TSVSCodeThemeImporter.m; sourceTree = "<group>"; };
+		4016DD8A2109FC6200745019 /* TSVSCodeThemeImporter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TSVSCodeThemeImporter.h; sourceTree = "<group>"; };
 		4017CF9A266454D700981011 /* TSDocument-SyncConTeXt.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "TSDocument-SyncConTeXt.m"; sourceTree = "<group>"; };
 		401B9EC01F8C568300B48034 /* TSDocument-SyncOld.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "TSDocument-SyncOld.m"; sourceTree = "<group>"; };
 		401EF0740D0B3F8800203D7B /* MyDragView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MyDragView.h; sourceTree = "<group>"; };
@@ -1249,6 +1253,8 @@
 				00E7EAC2001D35FA7F000001 /* TSAppDelegate.m */,
 				4016DD862109FC6200745019 /* TSColorSupport.h */,
 				4016DD852109FC6200745019 /* TSColorSupport.m */,
+				4016DD8A2109FC6200745019 /* TSVSCodeThemeImporter.h */,
+				4016DD892109FC6200745019 /* TSVSCodeThemeImporter.m */,
 				403649E1211BDA800086DDD1 /* TSPreferenceWindow.h */,
 				403649E2211BDA800086DDD1 /* TSPreferenceWindow.m */,
 				0AC768C30010B1D17F000001 /* TSPreferences.h */,
@@ -1681,6 +1687,7 @@
 				40B7DEAB057139E2002872F2 /* TSDocumentScripting.h in Headers */,
 				404D7901199FF471008B8D64 /* TSFullSplitWindow.h in Headers */,
 				4016DD882109FC6200745019 /* TSColorSupport.h in Headers */,
+				4016DD8C2109FC6200745019 /* TSVSCodeThemeImporter.h in Headers */,
 				4096186405824CF2000D94FD /* TSMatrixPanelController.h in Headers */,
 				40D1F2C106040B1700087115 /* TSMatrixTableView.h in Headers */,
 				404D1B632891B23400402802 /* TSHTMLWindow.h in Headers */,
@@ -2071,6 +2078,7 @@
 				4078818A0519249A006979EA /* TSEncodingSupport.m in Sources */,
 				40356AD11F8D157F0093399B /* synctex_parser_old.c in Sources */,
 				4016DD872109FC6200745019 /* TSColorSupport.m in Sources */,
+				4016DD8B2109FC6200745019 /* TSVSCodeThemeImporter.m in Sources */,
 				4078818B0519249A006979EA /* TSMacroEditor.m in Sources */,
 				4078818C0519249A006979EA /* TSMacroMenuController.m in Sources */,
 				4078818D0519249A006979EA /* TSMacroTreeNode.m in Sources */,

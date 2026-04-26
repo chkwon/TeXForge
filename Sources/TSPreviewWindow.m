@@ -60,7 +60,7 @@ extern NSPanel *pageNumberWindow;
     self.firstTime = YES;
 
 	[self setTitlebarAppearsTransparent:YES];
-	[self setBackgroundColor:TSWindowFrameColor()];
+	[self applyThemedFrameTintFromDictionary:nil];
 
 	CGFloat alpha = [SUD floatForKey: PreviewWindowAlphaKey];
 	if (alpha < 0.999)
@@ -71,9 +71,26 @@ extern NSPanel *pageNumberWindow;
 	self.willClose = NO;
     self.horizontal = YES;
     self.oldUnsplitAfterSwitch = NO;
-    
-    
+
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleThemeColorChange:) name:SourceColorChangedNotification object:nil];
+
 	return result;
+}
+
+
+- (void)applyThemedFrameTintFromDictionary:(NSDictionary *)dict
+{
+    BOOL isDark = NO;
+    if (@available(macOS 10.14, *)) {
+        isDark = [self.effectiveAppearance.name isEqualToString: NSAppearanceNameDarkAqua];
+    }
+    [self setBackgroundColor: TSWindowFrameColorForDictionary(dict, isDark)];
+}
+
+- (void)handleThemeColorChange:(NSNotification *)note
+{
+    NSDictionary *dict = [note.userInfo isKindOfClass: [NSDictionary class]] ? note.userInfo : nil;
+    [self applyThemedFrameTintFromDictionary: dict];
 }
 
 

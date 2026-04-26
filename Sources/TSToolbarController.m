@@ -372,6 +372,28 @@ else
 // Copilot toolbar button helpers
 // -----------------------------------------------------------------------------
 
+// Pick a theme-derived accent for the Ready sparkle so it reads well on whatever
+// editor background is active. Prefers SyntaxCommand (usually a saturated accent),
+// falls back to EditorText, then systemGreenColor if no theme data is loaded.
+static NSColor *TSCopilotReadyTint(void)
+{
+    BOOL isDark = NO;
+    if (@available(macOS 10.14, *)) {
+        isDark = [[NSAppearance currentAppearance].name isEqualToString: NSAppearanceNameDarkAqua];
+    }
+    NSDictionary *theme = isDark ? darkColors : liteColors;
+    for (NSString *key in @[@"SyntaxCommand", @"EditorText"]) {
+        NSArray *rgba = [theme objectForKey: key];
+        if ([rgba isKindOfClass: [NSArray class]] && rgba.count >= 3) {
+            return [NSColor colorWithSRGBRed: [rgba[0] doubleValue]
+                                       green: [rgba[1] doubleValue]
+                                        blue: [rgba[2] doubleValue]
+                                       alpha: 1.0];
+        }
+    }
+    return [NSColor systemGreenColor];
+}
+
 - (void)_updateCopilotButton:(NSButton *)button
 {
     TSCopilotConnectionStatus status = [TSCopilotPreferences connectionStatus];
@@ -389,7 +411,7 @@ else
                        [TSCopilotPreferences provider]];
             break;
         case TSCopilotConnectionStatusReady:
-            tint = [NSColor systemGreenColor];
+            tint = TSCopilotReadyTint();
             tooltip = [NSString stringWithFormat:@"Copilot: Ready (%@)",
                        [TSCopilotPreferences provider]];
             break;
@@ -416,6 +438,16 @@ else
 }
 
 - (void)_copilotPreferencesDidChange:(NSNotification *)note
+{
+    [self _refreshCopilotButtons];
+}
+
+- (void)_themeColorDidChange:(NSNotification *)note
+{
+    [self _refreshCopilotButtons];
+}
+
+- (void)_refreshCopilotButtons
 {
     NSArray *windows = @[];
     if ([self textWindow])
@@ -486,6 +518,11 @@ if (@available(macOS 11.0, *))
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(_copilotPreferencesDidChange:)
                                                  name:TSCopilotPreferencesDidChangeNotification
+                                               object:nil];
+    // Re-tint the sparkle when the theme changes so it stays legible on the new background.
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(_themeColorDidChange:)
+                                                 name:SourceColorChangedNotification
                                                object:nil];
 }
 
