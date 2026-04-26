@@ -49,14 +49,25 @@ Everything else -- typesetting engines, PDF viewer, SyncTeX, macro system, multi
 Pre-built releases are on the [Releases page](https://github.com/chkwon/TeXForge/releases/latest). Apple Silicon (M-series) only.
 
 1. Download `TeXForge-vX.Y.Z-arm64.zip` from the latest release.
-2. Unzip and drag `TeXForge.app` into `/Applications`.
-3. Strip the macOS quarantine attribute -- without this, Gatekeeper refuses to open the app:
+2. Unzip in `~/Downloads` (double-click the zip in Finder).
+3. **Strip the macOS quarantine attribute first**, before moving the app:
 
    ```bash
-   xattr -dr com.apple.quarantine /Applications/TeXForge.app
+   xattr -dr com.apple.quarantine ~/Downloads/TeXForge.app
    ```
 
-4. Launch TeXForge from `/Applications` or Spotlight.
+4. Drag `TeXForge.app` from `~/Downloads` to `/Applications`.
+5. Launch TeXForge from `/Applications` or Spotlight.
+
+**Order matters.** Strip the attribute *before* moving the app. If you move the quarantined app into `/Applications` first and then run `xattr`, macOS often caches a Gatekeeper rejection at the new path that the `xattr` removal doesn't clear -- the icon will bounce in the Dock but the app won't actually launch.
+
+If you've already hit the bounces-but-doesn't-launch state, move the app out, strip the attribute, and move it back:
+
+```bash
+mv /Applications/TeXForge.app ~/Downloads/TeXForge.app
+xattr -dr com.apple.quarantine ~/Downloads/TeXForge.app
+mv ~/Downloads/TeXForge.app /Applications/TeXForge.app
+```
 
 The `xattr` step is needed because TeXForge ships with an ad-hoc code signature, not an Apple-issued Developer ID signature. macOS attaches `com.apple.quarantine` to anything downloaded by a browser, and Gatekeeper blocks ad-hoc signed apps that carry it. Removing the attribute is the official escape hatch.
 
