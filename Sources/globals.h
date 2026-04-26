@@ -710,3 +710,11 @@ extern NSPoint menuPoint;
 
 NSColor *TSWindowFrameColor(void);
 
+// Returns the titlebar/chrome tint that should match the active theme.
+// If themeDict is non-nil (e.g. a live-preview notification payload), its
+// EditorBackground is used. Otherwise darkAppearance picks liteColors vs darkColors.
+// Falls back to TSWindowFrameColor() (the branded peach) when no theme data
+// is available yet — e.g. before checkAndRestoreDefaults / initializeColors
+// have run on first launch.
+NSColor *TSWindowFrameColorForDictionary(NSDictionary * _Nullable themeDict, BOOL darkAppearance);
+

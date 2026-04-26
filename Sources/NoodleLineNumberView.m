@@ -121,8 +121,8 @@
 {
 	if (_textColor != color)
 	{
-//		[_textColor autorelease];
-//		_textColor  = [color retain];
+		_textColor = color;
+		[self setNeedsDisplay:YES];
 	}
 }
 
@@ -139,8 +139,8 @@
 {
 	if (_alternateTextColor != color)
 	{
-//		[_alternateTextColor autorelease];
-//		_alternateTextColor = [color retain];
+		_alternateTextColor = color;
+		[self setNeedsDisplay:YES];
 	}
 }
 
@@ -157,8 +157,8 @@
 {
 	if (_backgroundColor != color)
 	{
-//		[_backgroundColor autorelease];
-//		_backgroundColor = [color retain];
+		_backgroundColor = color;
+		[self setNeedsDisplay:YES];
 	}
 }
 

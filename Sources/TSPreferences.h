@@ -498,6 +498,7 @@
 - (void)okForColor;
 - (void)cancelForColor;
 
-
+- (IBAction)revealThemesFolder:sender;
+- (IBAction)installThemeFromFile:sender;
 
 @end

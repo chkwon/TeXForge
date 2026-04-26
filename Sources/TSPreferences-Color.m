@@ -25,6 +25,7 @@
 #import "TSPreferences.h"
 #import "globals.h"
 #import "TSColorSupport.h"
+#import "TSVSCodeThemeImporter.h"
 
 
 @implementation TSPreferences (Color)
@@ -37,40 +38,88 @@ NSInteger stringSort(id s1, id s2, void *context)
 }
 
 
+// Rebuild the contents of the three theme popup buttons from the current state of
+// ~/Library/TeXForge/Themes/. Preserves the previously-selected titles when they
+// still exist, so the user's choice survives a refresh.
+- (void)refreshThemePopups
+{
+    NSString *prevLite    = [LiteStyle titleOfSelectedItem];
+    NSString *prevDark    = [DarkStyle titleOfSelectedItem];
+    NSString *prevEditing = [EditingStyle titleOfSelectedItem];
+
+    [LiteStyle removeAllItems];
+    [DarkStyle removeAllItems];
+    [EditingStyle removeAllItems];
+
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSString *filePath = [ColorPath stringByExpandingTildeInPath];
+    NSArray *contents = [[fileManager contentsOfDirectoryAtPath: filePath error: nil]
+                            sortedArrayUsingFunction: stringSort context: NULL];
+
+    for (NSString *item in contents) {
+        if (! [[item pathExtension] isEqualToString: @"plist"]) continue;
+        NSString *title = [item stringByDeletingPathExtension];
+        [LiteStyle addItemWithTitle: title];
+        [DarkStyle addItemWithTitle: title];
+        [EditingStyle addItemWithTitle: title];
+    }
+
+    if (prevLite    && [LiteStyle    itemWithTitle: prevLite])    [LiteStyle    selectItemWithTitle: prevLite];
+    if (prevDark    && [DarkStyle    itemWithTitle: prevDark])    [DarkStyle    selectItemWithTitle: prevDark];
+    if (prevEditing && [EditingStyle itemWithTitle: prevEditing]) [EditingStyle selectItemWithTitle: prevEditing];
+}
+
+
+// Insert "Install Theme…" and "Reveal Themes Folder" buttons into the Colors pane
+// at runtime. This sidesteps the compiled Preferences.nib, which can only be
+// edited in Xcode's Interface Builder. Safe to call repeatedly — the helper
+// tags the buttons and won't add duplicates.
+- (void)installThemeButtonsIfNeeded
+{
+    static const NSInteger kInstallButtonTag = 924701;
+    if (! EditingStyle) return;
+    NSView *pane = EditingStyle.superview;
+    if (! pane) return;
+    if ([pane viewWithTag: kInstallButtonTag]) return;
+
+    NSRect refFrame = EditingStyle.frame;
+    CGFloat buttonHeight = 24.0;
+    CGFloat buttonY = NSMinY(refFrame) - buttonHeight - 8.0;
+    if (buttonY < 4.0) buttonY = NSMaxY(refFrame) + 8.0;
+
+    NSButton *install = [[NSButton alloc] initWithFrame: NSMakeRect(NSMinX(refFrame), buttonY, 150.0, buttonHeight)];
+    install.bezelStyle = NSBezelStyleRounded;
+    install.title = NSLocalizedString(@"Install Theme…", @"Colors pane: import a theme from a file");
+    install.target = self;
+    install.action = @selector(installThemeFromFile:);
+    install.tag = kInstallButtonTag;
+    install.autoresizingMask = NSViewMinYMargin;
+    [pane addSubview: install];
+
+    NSButton *reveal = [[NSButton alloc] initWithFrame: NSMakeRect(NSMinX(refFrame) + 160.0, buttonY, 190.0, buttonHeight)];
+    reveal.bezelStyle = NSBezelStyleRounded;
+    reveal.title = NSLocalizedString(@"Reveal Themes Folder", @"Colors pane: open the user themes directory");
+    reveal.target = self;
+    reveal.action = @selector(revealThemesFolder:);
+    reveal.autoresizingMask = NSViewMinYMargin;
+    [pane addSubview: reveal];
+}
+
+
 - (void)PrepareColorPane:(NSUserDefaults *)defaults;
 {
-    
-    NSArray *contents, *originalContents;
-    
-  // Fill three menus with names of plist files in ~/Library/TeXShop/Colors
-    
     TSColorSupport *colorSupport = [TSColorSupport sharedInstance];
     [colorSupport checkAndRestoreDefaults];
-    
+
     oldLiteStyle = [SUD objectForKey: DefaultLiteThemeKey];
     oldDarkStyle = [SUD objectForKey: DefaultDarkThemeKey];
 
-    
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    NSString *filePath = [ColorPath stringByExpandingTildeInPath];
-    originalContents= [fileManager contentsOfDirectoryAtPath: filePath error: nil];
-    contents = [originalContents sortedArrayUsingFunction: stringSort context: NULL ];
-    
-    NSUInteger i;
-    NSString *theTitle;
-    for (i = 0; i < [contents count]; i++)
-    {
-        if ([[contents[i] pathExtension] isEqualToString: @"plist"])
-             {
-                 theTitle = [contents[i] stringByDeletingPathExtension];
-                 [LiteStyle addItemWithTitle: theTitle];
-                 [DarkStyle addItemWithTitle: theTitle];
-                 [EditingStyle addItemWithTitle: theTitle];
-              }
-    }
+    [self refreshThemePopups];
+    [self installThemeButtonsIfNeeded];
+
     NSString *liteTitle = [SUD stringForKey:DefaultLiteThemeKey];
     NSString *darkTitle = [SUD stringForKey:DefaultDarkThemeKey];
-    
+
     // if this file doesn't exist, switch menu to LiteColors
     [LiteStyle selectItemWithTitle: liteTitle];
     [DarkStyle selectItemWithTitle: darkTitle];
@@ -87,12 +136,9 @@ NSInteger stringSort(id s1, id s2, void *context)
         [EditingStyle selectItemWithTitle: liteTitle];
         EditingColors = [colorSupport dictionaryForColorFile: liteTitle];
     }
-    
+
     // Fill in all the color wells with the colors of these items
-    
     [self FillInColorWells];
-    
-    
 }
 
 
@@ -131,18 +177,34 @@ NSInteger stringSort(id s1, id s2, void *context)
   
 }
 
+// Live-preview helper: load the selected theme, sync the Editing popup and color wells,
+// and broadcast so all open documents (and themed window chrome) repaint immediately.
+// The permanent Lite/Dark choice is still only persisted in okForColor — Cancel reverts.
+- (void)applyLivePreviewForThemeTitle:(NSString *)title
+{
+    if (title.length == 0) return;
+    TSColorSupport *colorSupport = [TSColorSupport sharedInstance];
+    NSMutableDictionary *theme = [colorSupport dictionaryForColorFile: title];
+    if (! theme) return;
+
+    EditingColors = theme;
+    if ([EditingStyle itemWithTitle: title]) {
+        [EditingStyle selectItemWithTitle: title];
+    }
+    [[NSNotificationCenter defaultCenter] postNotificationName: SourceColorChangedNotification
+                                                        object: self
+                                                      userInfo: EditingColors];
+    [self FillInColorWells];
+}
+
 - (IBAction)LiteStyleChoice:sender
 {
-    
-    // Make choice temporarily, but don't activate it until OK
-    // Thus there is nothing to do here
-    
+    [self applyLivePreviewForThemeTitle: [LiteStyle titleOfSelectedItem]];
 }
 
 - (IBAction)DarkStyleChoice:sender
 {
-    // Make choice temporarily, but don't activate it until OK
-    // Thus there is nothing to do here
+    [self applyLivePreviewForThemeTitle: [DarkStyle titleOfSelectedItem]];
 }
 
 - (void)FillInColorWells
@@ -1073,7 +1135,7 @@ NSInteger stringSort(id s1, id s2, void *context)
 - (IBAction)explmsgColorChanged:sender
 {
     TSColorSupport *colorSupport = [TSColorSupport sharedInstance];
-    
+
     if ((! _prefsWindow.keyWindow ) && (! [NSColorPanel sharedColorPanel].keyWindow))
     {
         [[NSColorPanel sharedColorPanel] close];
@@ -1086,6 +1148,99 @@ NSInteger stringSort(id s1, id s2, void *context)
 }
 
 
+- (IBAction)revealThemesFolder:sender
+{
+    NSString *dir = [ColorPath stringByExpandingTildeInPath];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (! [fm fileExistsAtPath: dir]) {
+        [fm createDirectoryAtPath: dir withIntermediateDirectories: YES attributes: nil error: nil];
+    }
+    [[NSWorkspace sharedWorkspace] openURL: [NSURL fileURLWithPath: dir isDirectory: YES]];
+}
+
+
+// Validate a plist at url: must parse as a dictionary and must define EditorBackground.
+// Keeps garbage (or theme files for unrelated apps) out of the themes folder.
+- (BOOL)looksLikeThemeAtPath:(NSString *)path
+{
+    NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile: path];
+    return (d != nil) && ([d objectForKey: @"EditorBackground"] != nil);
+}
+
+
+- (IBAction)installThemeFromFile:sender
+{
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowsMultipleSelection = NO;
+    panel.canChooseDirectories = NO;
+    panel.canChooseFiles = YES;
+    panel.allowedFileTypes = @[@"plist", @"json"];
+    panel.message = NSLocalizedString(@"Choose a theme file (.plist or VS Code .json) to install.",
+                                      @"Install theme open panel prompt");
+
+    [panel beginSheetModalForWindow: _prefsWindow
+                  completionHandler: ^(NSModalResponse result) {
+        if (result != NSModalResponseOK) return;
+        NSURL *chosen = panel.URLs.firstObject;
+        if (! chosen) return;
+
+        NSString *ext = [chosen.pathExtension lowercaseString];
+        NSString *installedPath = nil;
+
+        if ([ext isEqualToString: @"json"]) {
+            NSError *err = nil;
+            installedPath = [TSVSCodeThemeImporter importJSONFileAtPath: chosen.path error: &err];
+            if (! installedPath) {
+                NSAlert *alert = [[NSAlert alloc] init];
+                alert.messageText = NSLocalizedString(@"Could not import theme", @"Import failure title");
+                alert.informativeText = err.localizedDescription ?: @"";
+                [alert runModal];
+                return;
+            }
+        } else {
+            // Plist path — validate, then copy (or replace, with confirmation).
+            if (! [self looksLikeThemeAtPath: chosen.path]) {
+                NSAlert *alert = [[NSAlert alloc] init];
+                alert.messageText = NSLocalizedString(@"Not a TeXForge theme", @"Not-a-theme title");
+                alert.informativeText = NSLocalizedString(@"The selected .plist does not contain an EditorBackground entry.",
+                                                         @"Not-a-theme body");
+                [alert runModal];
+                return;
+            }
+            NSString *dir = [ColorPath stringByExpandingTildeInPath];
+            NSString *destPath = [dir stringByAppendingPathComponent: chosen.lastPathComponent];
+            NSFileManager *fm = [NSFileManager defaultManager];
+            if ([fm fileExistsAtPath: destPath]) {
+                NSAlert *alert = [[NSAlert alloc] init];
+                alert.messageText = NSLocalizedString(@"Replace existing theme?", @"Replace confirmation");
+                alert.informativeText = [NSString stringWithFormat:
+                    NSLocalizedString(@"A theme named \"%@\" already exists. Replace it?", @"Replace body"),
+                    [chosen.lastPathComponent stringByDeletingPathExtension]];
+                [alert addButtonWithTitle: NSLocalizedString(@"Replace", @"")];
+                [alert addButtonWithTitle: NSLocalizedString(@"Cancel", @"")];
+                if ([alert runModal] != NSAlertFirstButtonReturn) return;
+                [fm removeItemAtPath: destPath error: nil];
+            }
+            NSError *err = nil;
+            if (! [fm copyItemAtPath: chosen.path toPath: destPath error: &err]) {
+                NSAlert *alert = [[NSAlert alloc] init];
+                alert.messageText = NSLocalizedString(@"Could not install theme", @"Copy failure title");
+                alert.informativeText = err.localizedDescription ?: @"";
+                [alert runModal];
+                return;
+            }
+            installedPath = destPath;
+        }
+
+        [self refreshThemePopups];
+
+        NSString *newTitle = [installedPath.lastPathComponent stringByDeletingPathExtension];
+        if ([EditingStyle itemWithTitle: newTitle]) {
+            [EditingStyle selectItemWithTitle: newTitle];
+            [self EditingStyleChoice: EditingStyle];
+        }
+    }];
+}
 
 
 @end
