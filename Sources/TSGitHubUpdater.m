@@ -33,11 +33,144 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
 @implementation TSGitHubRelease
 @end
 
-@interface TSGitHubUpdater ()
+@interface TSUpdateProgressWindowController : NSWindowController
+
+@property (copy) void (^cancelHandler)(void);
+
+- (void)setStatus:(NSString *)status;
+- (void)setIndeterminate:(BOOL)indeterminate;
+- (void)setProgressFraction:(double)fraction;
+- (void)setBytesText:(NSString *)text;
+- (void)setCancelEnabled:(BOOL)enabled;
+
+@end
+
+@interface TSUpdateProgressWindowController ()
+
+@property (strong) NSTextField *statusField;
+@property (strong) NSProgressIndicator *progressBar;
+@property (strong) NSTextField *bytesField;
+@property (strong) NSButton *cancelButton;
+
+@end
+
+@implementation TSUpdateProgressWindowController
+
+- (instancetype)init
+{
+    NSRect contentRect = NSMakeRect(0, 0, 440, 150);
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:contentRect
+                                                   styleMask:NSWindowStyleMaskTitled
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    window.title = @"TeXForge Update";
+    window.releasedWhenClosed = NO;
+    [window center];
+
+    self = [super initWithWindow:window];
+    if (self) {
+        [self buildContentView];
+    }
+    return self;
+}
+
+- (void)buildContentView
+{
+    NSView *content = self.window.contentView;
+
+    _statusField = [NSTextField labelWithString:@""];
+    _statusField.font = [NSFont systemFontOfSize:13 weight:NSFontWeightMedium];
+    _statusField.lineBreakMode = NSLineBreakByTruncatingTail;
+    _statusField.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:_statusField];
+
+    _progressBar = [[NSProgressIndicator alloc] init];
+    _progressBar.style = NSProgressIndicatorStyleBar;
+    _progressBar.indeterminate = YES;
+    _progressBar.minValue = 0.0;
+    _progressBar.maxValue = 1.0;
+    _progressBar.translatesAutoresizingMaskIntoConstraints = NO;
+    [_progressBar startAnimation:nil];
+    [content addSubview:_progressBar];
+
+    _bytesField = [NSTextField labelWithString:@""];
+    _bytesField.font = [NSFont systemFontOfSize:11];
+    _bytesField.textColor = [NSColor secondaryLabelColor];
+    _bytesField.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:_bytesField];
+
+    _cancelButton = [NSButton buttonWithTitle:@"Cancel"
+                                       target:self
+                                       action:@selector(cancelClicked:)];
+    _cancelButton.keyEquivalent = @"\033";
+    _cancelButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview:_cancelButton];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [_statusField.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+        [_statusField.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-20],
+        [_statusField.topAnchor constraintEqualToAnchor:content.topAnchor constant:18],
+
+        [_progressBar.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+        [_progressBar.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-20],
+        [_progressBar.topAnchor constraintEqualToAnchor:_statusField.bottomAnchor constant:10],
+
+        [_bytesField.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:20],
+        [_bytesField.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-20],
+        [_bytesField.topAnchor constraintEqualToAnchor:_progressBar.bottomAnchor constant:6],
+
+        [_cancelButton.trailingAnchor constraintEqualToAnchor:content.trailingAnchor constant:-20],
+        [_cancelButton.bottomAnchor constraintEqualToAnchor:content.bottomAnchor constant:-15],
+    ]];
+}
+
+- (void)setStatus:(NSString *)status
+{
+    self.statusField.stringValue = status ?: @"";
+}
+
+- (void)setIndeterminate:(BOOL)indeterminate
+{
+    self.progressBar.indeterminate = indeterminate;
+    if (indeterminate) {
+        [self.progressBar startAnimation:nil];
+    } else {
+        [self.progressBar stopAnimation:nil];
+    }
+}
+
+- (void)setProgressFraction:(double)fraction
+{
+    self.progressBar.doubleValue = fraction;
+}
+
+- (void)setBytesText:(NSString *)text
+{
+    self.bytesField.stringValue = text ?: @"";
+}
+
+- (void)setCancelEnabled:(BOOL)enabled
+{
+    self.cancelButton.enabled = enabled;
+}
+
+- (void)cancelClicked:(id)sender
+{
+    if (self.cancelHandler) {
+        self.cancelHandler();
+    }
+}
+
+@end
+
+@interface TSGitHubUpdater () <NSURLSessionDelegate, NSURLSessionTaskDelegate, NSURLSessionDownloadDelegate>
 
 @property (strong) NSURLSession *session;
 @property (assign) BOOL isCheckingForUpdates;
 @property (assign) BOOL isDownloadingUpdate;
+@property (strong) TSUpdateProgressWindowController *progressController;
+@property (strong) NSURLSessionDownloadTask *currentDownloadTask;
+@property (strong) TSGitHubRelease *currentDownloadRelease;
 
 @end
 
@@ -59,8 +192,8 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
     if (self) {
         NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
         configuration.timeoutIntervalForRequest = 15.0;
-        configuration.timeoutIntervalForResource = 300.0;
-        _session = [NSURLSession sessionWithConfiguration:configuration];
+        configuration.timeoutIntervalForResource = 600.0;
+        _session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:nil];
     }
     return self;
 }
@@ -80,7 +213,7 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
                                            defaultButton:@"Open Releases"
                                          alternateButton:@"Cancel"
                                              otherButton:nil];
-            if (response == NSAlertDefaultReturn) {
+            if (response == NSAlertFirstButtonReturn) {
                 [self openReleaseURLString:[self releasesPageURLString]];
             }
             return;
@@ -145,33 +278,149 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
                                         release:release];
         return;
     }
-    
+
     self.isDownloadingUpdate = YES;
-    
+    self.currentDownloadRelease = release;
+
+    self.progressController = [[TSUpdateProgressWindowController alloc] init];
+    __weak typeof(self) weakSelf = self;
+    self.progressController.cancelHandler = ^{
+        [weakSelf cancelDownload];
+    };
+    [self.progressController setStatus:[NSString stringWithFormat:@"Downloading TeXForge %@…", release.version]];
+    [self.progressController setIndeterminate:YES];
+    [self.progressController setBytesText:@""];
+    [self.progressController setCancelEnabled:YES];
+    [self.progressController showWindow:nil];
+    [self.progressController.window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
     [request setValue:[self userAgent] forHTTPHeaderField:@"User-Agent"];
-    
-    NSURLSessionDownloadTask *task = [self.session downloadTaskWithRequest:request
-                                                         completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-        if (error || location == nil) {
-            [self finishDownloadWithError:@"TeXForge could not download the update." release:release];
-            return;
-        }
-        
-        NSError *processingError = nil;
-        NSDictionary *stagedInfo = [self stageDownloadedReleaseAtURL:location release:release error:&processingError];
-        if (stagedInfo == nil) {
-            [self finishDownloadWithError:[processingError localizedDescription] ?: @"TeXForge could not prepare the downloaded update."
-                                   release:release];
-            return;
-        }
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            self.isDownloadingUpdate = NO;
-            [self promptToInstallStagedRelease:release stagedInfo:stagedInfo];
-        });
-    }];
+
+    NSURLSessionDownloadTask *task = [self.session downloadTaskWithRequest:request];
+    self.currentDownloadTask = task;
     [task resume];
+}
+
+- (void)cancelDownload
+{
+    NSURLSessionDownloadTask *task = self.currentDownloadTask;
+    if (task != nil) {
+        [task cancel];
+    } else {
+        [self closeProgressWindowAndResetState];
+    }
+}
+
+- (void)closeProgressWindowAndResetState
+{
+    [self.progressController close];
+    self.progressController = nil;
+    self.currentDownloadTask = nil;
+    self.currentDownloadRelease = nil;
+    self.isDownloadingUpdate = NO;
+}
+
+- (NSString *)formattedBytesWritten:(int64_t)written total:(int64_t)total
+{
+    NSByteCountFormatter *formatter = [[NSByteCountFormatter alloc] init];
+    formatter.countStyle = NSByteCountFormatterCountStyleFile;
+    if (total > 0) {
+        return [NSString stringWithFormat:@"%@ of %@",
+                [formatter stringFromByteCount:written],
+                [formatter stringFromByteCount:total]];
+    }
+    return [formatter stringFromByteCount:written];
+}
+
+#pragma mark - NSURLSessionDownloadDelegate
+
+- (void)URLSession:(NSURLSession *)session
+      downloadTask:(NSURLSessionDownloadTask *)downloadTask
+      didWriteData:(int64_t)bytesWritten
+ totalBytesWritten:(int64_t)totalBytesWritten
+totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite
+{
+    if (downloadTask != self.currentDownloadTask) {
+        return;
+    }
+
+    BOOL hasTotal = (totalBytesExpectedToWrite > 0);
+    double fraction = hasTotal ? ((double)totalBytesWritten / (double)totalBytesExpectedToWrite) : 0.0;
+    NSString *bytesText = [self formattedBytesWritten:totalBytesWritten total:totalBytesExpectedToWrite];
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (hasTotal) {
+            [self.progressController setIndeterminate:NO];
+            [self.progressController setProgressFraction:fraction];
+        }
+        [self.progressController setBytesText:bytesText];
+    });
+}
+
+- (void)URLSession:(NSURLSession *)session
+      downloadTask:(NSURLSessionDownloadTask *)downloadTask
+didFinishDownloadingToURL:(NSURL *)location
+{
+    if (downloadTask != self.currentDownloadTask) {
+        return;
+    }
+
+    TSGitHubRelease *release = self.currentDownloadRelease;
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.progressController setStatus:[NSString stringWithFormat:@"Installing TeXForge %@…", release.version]];
+        [self.progressController setIndeterminate:YES];
+        [self.progressController setBytesText:@""];
+        [self.progressController setCancelEnabled:NO];
+    });
+
+    NSError *error = nil;
+    NSDictionary *stagedInfo = [self stageDownloadedReleaseAtURL:location release:release error:&error];
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (stagedInfo == nil) {
+            [self closeProgressWindowAndResetState];
+            [self showErrorAndOpenReleaseIfPossible:[error localizedDescription] ?: @"TeXForge could not prepare the downloaded update."
+                                            release:release];
+            return;
+        }
+
+        NSError *installError = nil;
+        if (![self launchInstallerForStagedInfo:stagedInfo error:&installError]) {
+            [self cleanupStagingRootAtPath:stagedInfo[@"stagingRoot"]];
+            [self closeProgressWindowAndResetState];
+            [self showErrorAndOpenReleaseIfPossible:[installError localizedDescription] ?: @"TeXForge could not start the installer."
+                                            release:release];
+            return;
+        }
+
+        [NSApp terminate:nil];
+    });
+}
+
+- (void)URLSession:(NSURLSession *)session
+              task:(NSURLSessionTask *)task
+didCompleteWithError:(NSError *)error
+{
+    if (task != self.currentDownloadTask) {
+        return;
+    }
+    if (error == nil) {
+        return;
+    }
+
+    BOOL wasCancelled = ([error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled);
+    TSGitHubRelease *release = self.currentDownloadRelease;
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self closeProgressWindowAndResetState];
+        if (!wasCancelled) {
+            [self showErrorAndOpenReleaseIfPossible:@"TeXForge could not download the update."
+                                            release:release];
+        }
+    });
 }
 
 - (TSGitHubRelease *)releaseFromJSON:(NSDictionary *)json
@@ -373,14 +622,14 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
                                    defaultButton:@"Download Update"
                                  alternateButton:@"Later"
                                      otherButton:@"View Release"];
-    if (response == NSAlertOtherReturn) {
+    if (response == NSAlertThirdButtonReturn) {
         [self openReleaseURLString:release.releaseURLString];
         return;
     }
-    if (response != NSAlertDefaultReturn) {
+    if (response != NSAlertFirstButtonReturn) {
         return;
     }
-    
+
     if (![self currentInstallationIsWritable]) {
         [self promptForFallbackOpenWithMessage:@"TeXForge can only self-install updates when its current location is writable."
                                        release:release];
@@ -388,35 +637,6 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
     }
     
     [self downloadRelease:release];
-}
-
-- (void)promptToInstallStagedRelease:(TSGitHubRelease *)release stagedInfo:(NSDictionary *)stagedInfo
-{
-    NSString *message = [NSString stringWithFormat:@"TeXForge %@ is ready to install. TeXForge will quit and relaunch to finish the update.", release.version];
-    NSInteger response = [self runAlertWithTitle:@"Install Update Now?"
-                                         message:message
-                                   defaultButton:@"Install and Relaunch"
-                                 alternateButton:@"Later"
-                                     otherButton:@"View Release"];
-    if (response == NSAlertOtherReturn) {
-        [self openReleaseURLString:release.releaseURLString];
-        [self cleanupStagingRootAtPath:stagedInfo[@"stagingRoot"]];
-        return;
-    }
-    if (response != NSAlertDefaultReturn) {
-        [self cleanupStagingRootAtPath:stagedInfo[@"stagingRoot"]];
-        return;
-    }
-    
-    NSError *installError = nil;
-    if (![self launchInstallerForStagedInfo:stagedInfo error:&installError]) {
-        [self cleanupStagingRootAtPath:stagedInfo[@"stagingRoot"]];
-        [self showErrorAndOpenReleaseIfPossible:[installError localizedDescription] ?: @"TeXForge could not start the installer."
-                                        release:release];
-        return;
-    }
-    
-    [NSApp terminate:nil];
 }
 
 - (BOOL)launchInstallerForStagedInfo:(NSDictionary *)stagedInfo error:(NSError **)error
@@ -578,14 +798,6 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
     });
 }
 
-- (void)finishDownloadWithError:(NSString *)message release:(TSGitHubRelease *)release
-{
-    dispatch_async(dispatch_get_main_queue(), ^{
-        self.isDownloadingUpdate = NO;
-        [self showErrorAndOpenReleaseIfPossible:message release:release];
-    });
-}
-
 - (void)showErrorAndOpenReleaseIfPossible:(NSString *)message release:(TSGitHubRelease *)release
 {
     NSInteger response = [self runAlertWithTitle:@"Update Failed"
@@ -593,7 +805,7 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
                                    defaultButton:@"Open Release Page"
                                  alternateButton:@"OK"
                                      otherButton:nil];
-    if (response == NSAlertDefaultReturn) {
+    if (response == NSAlertFirstButtonReturn) {
         [self openReleaseURLString:release.releaseURLString ?: [self releasesPageURLString]];
     }
 }
@@ -605,7 +817,7 @@ static NSString * const kTSGitHubLatestReleaseURL = @"https://api.github.com/rep
                                    defaultButton:@"Open Release Page"
                                  alternateButton:@"Cancel"
                                      otherButton:nil];
-    if (response == NSAlertDefaultReturn) {
+    if (response == NSAlertFirstButtonReturn) {
         [self openReleaseURLString:release.releaseURLString];
     }
 }
