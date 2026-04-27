@@ -25,9 +25,9 @@
 	</array>
 	<key>EditorBackground</key>
 	<array>
-		<real>0.1176580935716629</real>
-		<real>0.1221526861190796</real>
-		<real>0.159778356552124</real>
+		<real>0.156862745</real>
+		<real>0.164705882</real>
+		<real>0.211764706</real>
 		<real>1</real>
 	</array>
 	<key>EditorFlash</key>
@@ -74,9 +74,9 @@
 	</array>
 	<key>EditorText</key>
 	<array>
-		<real>0.9655246734619141</real>
-		<real>0.9664257168769836</real>
-		<real>0.9361826777458191</real>
+		<real>0.972549020</real>
+		<real>0.972549020</real>
+		<real>0.949019608</real>
 		<real>1</real>
 	</array>
 	<key>EntryColor</key>
@@ -165,9 +165,9 @@
 	</array>
 	<key>SyntaxIndex</key>
 	<array>
-		<real>0.2842082679271698</real>
-		<real>0.9996640086174011</real>
-		<real>0.4078797996044159</real>
+		<real>0.313725490</real>
+		<real>0.980392157</real>
+		<real>0.482352941</real>
 		<real>1</real>
 	</array>
 	<key>SyntaxMarker</key>
@@ -179,27 +179,27 @@
 	</array>
 	<key>SyntaxMarkerParen</key>
 	<array>
-		<real>0</real>
-		<real>0</real>
-		<real>0</real>
-		<integer>1</integer>
+		<real>0.972549020</real>
+		<real>0.972549020</real>
+		<real>0.949019608</real>
+		<real>1</real>
 	</array>
 	<key>SyntaxMarkerCurly</key>
 	<array>
-		<real>0</real>
-		<real>0</real>
-		<real>0</real>
-		<integer>1</integer>
+		<real>0.972549020</real>
+		<real>0.972549020</real>
+		<real>0.949019608</real>
+		<real>1</real>
 	</array>
 	<key>SyntaxMarkerSquare</key>
 	<array>
-		<real>0</real>
-		<real>0</real>
-		<real>0</real>
-		<integer>1</integer>
+		<real>0.972549020</real>
+		<real>0.972549020</real>
+		<real>0.949019608</real>
+		<real>1</real>
 	</array>
 	<key>Title</key>
-	<string>Dracula (Draft)</string>
+	<string>Dracula</string>
 	<key>XMLComment</key>
 	<array>
 		<real>0.5</real>
