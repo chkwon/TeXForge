@@ -7,6 +7,20 @@
 #import "TSCopilotPreferences.h"
 #import "TSTextView.h"
 
+static CGFloat _sRGBComponentToLinear(CGFloat c) {
+    return (c <= 0.04045) ? (c / 12.92) : pow((c + 0.055) / 1.055, 2.4);
+}
+
+static CGFloat _sRGBRelativeLuminance(NSColor *color) {
+    NSColor *rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    if (!rgb) return 0.5;
+    CGFloat r = 0, g = 0, b = 0, a = 0;
+    [rgb getRed:&r green:&g blue:&b alpha:&a];
+    return 0.2126 * _sRGBComponentToLinear(r)
+         + 0.7152 * _sRGBComponentToLinear(g)
+         + 0.0722 * _sRGBComponentToLinear(b);
+}
+
 @implementation TSCopilotOverlayView {
     NSUInteger _ghostLineCount;
     CGFloat _cursorLineFragmentY;
@@ -235,12 +249,38 @@
     // Prepare drawing attributes
     NSFont *font = [tv font] ?: [NSFont userFixedPitchFontOfSize:12.0];
     CGFloat alpha = [TSCopilotPreferences ghostAlpha];
-    NSColor *ghostColor;
-    if (@available(macOS 10.14, *)) {
-        // Use a color that adapts to light/dark mode
-        ghostColor = [[NSColor secondaryLabelColor] colorWithAlphaComponent:alpha];
-    } else {
-        ghostColor = [NSColor colorWithCalibratedWhite:0.5 alpha:alpha];
+
+    // Theme-aware ghost color with perceptual contrast compensation.
+    // Linear sRGB blending alone makes thin glyphs (`{`, `}`, punctuation) nearly
+    // invisible on dark themes — human contrast sensitivity is roughly logarithmic
+    // and antialiased fine detail washes out faster against dark backgrounds. We
+    // boost the user's chosen ghostAlpha based on the bg's perceptual luminance
+    // and the bg→fg luminance span, leaving light themes unchanged.
+    NSColor *fgColor = [tv textColor] ?: [NSColor labelColor];
+    NSColor *bgColor = [tv backgroundColor] ?: [NSColor textBackgroundColor];
+
+    CGFloat bgLum = _sRGBRelativeLuminance(bgColor);
+    CGFloat fgLum = _sRGBRelativeLuminance(fgColor);
+    CGFloat span  = fabs(fgLum - bgLum);
+    CGFloat effectiveAlpha = alpha;
+
+    if (bgLum < 0.45) {
+        effectiveAlpha += (0.45 - bgLum) * 0.6;     // dark-bg boost
+    }
+    if (span < 0.4) {
+        effectiveAlpha += (0.4 - span) * 0.5;       // low-contrast theme boost
+    }
+
+    NSColor *bgRGB = [bgColor colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    if (bgRGB && [bgRGB alphaComponent] < 0.99) {
+        effectiveAlpha = MAX(effectiveAlpha, 0.6);  // translucent-window floor
+    }
+
+    effectiveAlpha = MIN(effectiveAlpha, 0.95);     // never saturate to fg
+
+    NSColor *ghostColor = [bgColor blendedColorWithFraction:effectiveAlpha ofColor:fgColor];
+    if (!ghostColor) {
+        ghostColor = [fgColor colorWithAlphaComponent:effectiveAlpha];
     }
 
     NSDictionary *attrs = @{
@@ -255,11 +295,8 @@
     CGFloat y = insertionRect.origin.y;
 
     // Background masking constants
-    NSColor *bgColor = [tv backgroundColor];
     CGFloat viewWidth = self.bounds.size.width;
     CGFloat leftMargin = containerOrigin.x + textContainer.lineFragmentPadding;
-
-    NSLog(@"[CopilotOverlay] drawing %lu lines at (%.1f, %.1f)", (unsigned long)lines.count, x, y);
 
     for (NSUInteger i = 0; i < lines.count; i++) {
         NSString *line = lines[i];
