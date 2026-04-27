@@ -596,6 +596,45 @@ static BOOL isValidOrdinaryTeXCommandChar(NSInteger c)
                 }
             }
             
+            // Color the environment name inside \begin{...} and \end{...} with
+            // SyntaxIndex (mapped from VS Code entity.name.* via TSVSCodeThemeImporter),
+            // so users get a visible cue similar to other editors. Mirrors the
+            // structure of the \index handler below.
+            if (([commandString isEqualToString: @"\\begin"]) ||
+                ([commandString isEqualToString: @"\\end"])) {
+
+                while ((location < aLineEnd) && ([textString characterAtIndex:location] == '['))
+                    [self bypassBracketUsing: layoutManager atLocation: &location andLineEnd: aLineEnd with: textString];
+
+                if ((location < aLineEnd) && ([textString characterAtIndex:location] == '{'))
+                {
+                    count = 1;
+                    charRange.location = location;
+                    charRange.length = 1;
+                    [layoutManager addTemporaryAttributes:self.markerColorAttribute forCharacterRange:charRange];
+                    location++;
+                    colorRange.location = location;
+                    BOOL notDone = YES;
+                    while ((location < aLineEnd) && (notDone)) {
+                        theChar = [textString characterAtIndex: location];
+                        if (theChar == '{')
+                            count++;
+                        if (theChar == '}')
+                            count--;
+                        if (count == 0) {
+                            notDone = NO;
+                            allDone = YES;
+                            colorRange.length = location - colorRange.location;
+                            [layoutManager addTemporaryAttributes:self.indexColorAttribute forCharacterRange:colorRange];
+                            charRange.location = location;
+                            charRange.length = 1;
+                            [layoutManager addTemporaryAttributes:self.markerColorAttribute forCharacterRange:charRange];
+                        }
+                        location++;
+                    }
+                }
+            }
+
             if ((colorIndexDifferently) &&
                 // esindex below is a Spanish indexing command
                 (([commandString isEqualToString: @"\\index"]) ||
