@@ -60,36 +60,18 @@ Everything else -- typesetting engines, PDF viewer, SyncTeX, macro system, multi
 Pre-built releases are on the [Releases page](https://github.com/chkwon/TeXForge/releases/latest). Apple Silicon (M-series) only.
 
 1. Download `TeXForge-vX.Y.Z-arm64.zip` from the latest release.
-2. Unzip in `~/Downloads` (double-click the zip in Finder).
-3. **Strip the macOS quarantine attribute first**, before moving the app:
+2. Unzip in Finder.
+3. Drag `TeXForge.app` to `/Applications`.
+4. Launch from `/Applications` or Spotlight.
 
-   ```bash
-   xattr -dr com.apple.quarantine ~/Downloads/TeXForge.app
-   ```
-
-4. Drag `TeXForge.app` from `~/Downloads` to `/Applications`.
-5. Launch TeXForge from `/Applications` or Spotlight.
-
-**Order matters.** Strip the attribute *before* moving the app. If you move the quarantined app into `/Applications` first and then run `xattr`, macOS often caches a Gatekeeper rejection at the new path that the `xattr` removal doesn't clear -- the icon will bounce in the Dock but the app won't actually launch.
-
-If you've already hit the bounces-but-doesn't-launch state, move the app out, strip the attribute, and move it back:
-
-```bash
-mv /Applications/TeXForge.app ~/Downloads/TeXForge.app
-xattr -dr com.apple.quarantine ~/Downloads/TeXForge.app
-mv ~/Downloads/TeXForge.app /Applications/TeXForge.app
-```
-
-The `xattr` step is needed because TeXForge ships with an ad-hoc code signature, not an Apple-issued Developer ID signature. macOS attaches `com.apple.quarantine` to anything downloaded by a browser, and Gatekeeper blocks ad-hoc signed apps that carry it. Removing the attribute is the official escape hatch.
-
-You only need this step on the first install. The in-app updater strips the attribute automatically on subsequent updates.
+Releases from v1.1.6 onward are signed with a Developer ID Application certificate and notarized by Apple, so Gatekeeper opens them with no warning. Earlier releases were ad-hoc signed and required stripping `com.apple.quarantine` manually -- see the [v1.1.5 README](https://github.com/chkwon/TeXForge/blob/v1.1.5/README.md#installing) for those instructions.
 
 ## Updating
 
 TeXForge has a built-in updater that watches the GitHub Releases page.
 
 - Pick **TeXForge → Check for Updates** from the menu bar.
-- The updater fetches the latest release, compares versions, and -- if a newer release exists -- downloads the zip, verifies its SHA-256, replaces the running app, and relaunches.
+- The updater fetches the latest release, compares versions, and -- if a newer release exists -- downloads the zip, verifies its SHA-256, atomically replaces the running app, and relaunches.
 - Apple Silicon only (matches the build).
 - No background polling -- the check only runs when you invoke the menu item.
 
@@ -113,7 +95,9 @@ The built app is at `build/Debug/TeXForge.app` or `build/Release/TeXForge.app`.
 
 Open `TeXForge.xcodeproj` and build with Cmd+B.
 
-No Apple Developer account is needed -- the build uses ad-hoc code signing.
+No Apple Developer account is needed -- the build uses ad-hoc code signing by default.
+
+Developer ID signing and Apple notarization are also supported locally, driven by environment variables; see `CLAUDE.md` ("Developer ID signing and notarization") for the full list.
 
 ## Releasing
 
@@ -134,7 +118,9 @@ Maintainer checklist for cutting a new release:
    git push origin vX.Y.Z
    ```
 
-4. The `release.yml` GitHub Actions workflow triggers on the `v*` tag push, builds an arm64 Release, zips the app, and publishes a GitHub release with auto-generated notes.
+4. The `release.yml` GitHub Actions workflow triggers on the `v*` tag push, imports a Developer ID certificate into a temporary keychain, builds an arm64 Release, signs the bundle with hardened runtime and a secure timestamp, submits to Apple's notary service, staples the ticket, zips the result, and publishes a GitHub release with auto-generated notes.
+
+   Required Apple Developer credentials are referenced from [`.github/workflows/release.yml`](.github/workflows/release.yml) as repo secrets; configure them under Settings → Secrets and variables → Actions before cutting a release. If any are missing or invalid, the "Set up signing keychain" or "Build Apple Silicon release" step will fail.
 5. Verify:
 
    ```bash
