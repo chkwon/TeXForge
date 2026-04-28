@@ -14,6 +14,15 @@ TeXForge brings Copilot-style ghost text to LaTeX editing. Suggestions appear as
 - **Claude API** -- Anthropic's Claude
 - **GitHub Copilot** -- via OAuth device flow and SSE streaming
 
+### Auto-loaded bibliography for cite/ref completion
+
+TeXShop's cite-key completion historically required BibDesk.app to be open in the background. TeXForge replaces that with an in-memory bibliography parser:
+
+- Auto-discovers and reads the `.bib` files referenced from the document via `\bibliography{}`, `\addbibresource{}`, and `\nobibliography{}`.
+- Watches the source and bib files; the cache reparses automatically when any of them change on disk.
+- Press **Cmd+Esc** inside `\cite{` (and natbib variants like `\citet`, `\citep`) to open the standard completion dropdown. Each row shows `<key> % <author> (<year>) <title>` so you can spot the right reference at a glance; only the bare cite key is committed to the buffer.
+- The same mechanism powers `\ref{` / `\eqref{` / `\pageref{` / `\autoref{` against `\label{}` definitions in the source.
+
 ### Modern keyboard shortcuts
 
 TeXForge adds shortcuts familiar from VS Code and other editors, while keeping all original TeXShop shortcuts:
@@ -35,6 +44,8 @@ TeXForge adds shortcuts familiar from VS Code and other editors, while keeping a
 | | TeXShop | TeXForge |
 |---|---------|----------|
 | AI inline completion | -- | Ollama, Claude, GitHub Copilot |
+| Cite/ref completion source | Requires BibDesk.app running | Auto-loaded from referenced `.bib` files (with file watching) |
+| Cite metadata in dropdown | Cite key only | `<key> % <author> (<year>) <title>` |
 | Tab/Shift+Tab indent | -- | Yes (when text selected) |
 | Cmd+/ toggle comment | -- | Yes |
 | Default theme | LiteTheme | Solarized Lite |
