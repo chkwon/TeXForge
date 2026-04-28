@@ -818,7 +818,7 @@ DQ
                                                                         <action selector="autoCompletePressed:" target="-2" id="854"/>
                                                                     </connections>
                                                                 </buttonCell>
-                                                                <buttonCell type="check" title="BibDesk Completions" bezelStyle="regularSquare" imagePosition="left" alignment="left" tag="4" inset="2" id="843">
+                                                                <buttonCell type="check" title="Bibliography Completions" bezelStyle="regularSquare" imagePosition="left" alignment="left" tag="4" inset="2" id="843">
                                                                     <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
                                                                     <font key="font" metaFont="system"/>
                                                                     <connections>

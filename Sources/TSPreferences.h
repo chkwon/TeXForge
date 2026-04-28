@@ -58,7 +58,7 @@
     IBOutlet NSButtonCell   *_autoSpellCorrectButton;   /*" connect to "Auto Spell Correcting "*/
     IBOutlet NSButtonCell   *_editorAddBracketsButton;  /*" connect to "Editor Can Add Brackets "*/
 	IBOutlet NSButtonCell	*_autoCompleteButton;		/*" connected to "Auto Completion "*/
-	IBOutlet NSButtonCell	*_bibDeskCompleteButton;	/*" connected to BibDesk Completions "*/
+	IBOutlet NSButtonCell	*_bibDeskCompleteButton;	/*" connected to Bibliography Completions "*/
 	IBOutlet NSButtonCell	*_lineNumberButton;			/*" connected to Line Number "*/
     IBOutlet NSButtonCell	*_tagMenuButton;			/*" connected to Line Number "*/
 	IBOutlet NSButtonCell	*_midEastButton; /*" connected to Arabic, Persian, Hebrew "*/
@@ -118,7 +118,7 @@
 	IBOutlet NSMatrix		*_consoleResizeMatrix;
     IBOutlet NSMatrix       *_blockWidthMatrix;
     IBOutlet NSMatrix       *_blockSideMatrix;
- 
+
 	IBOutlet NSButton *_showInvisibleCharactersButton; // added by Terada
 	IBOutlet NSButton *_showTabCharacterButton; // added by Terada
 	IBOutlet NSButton *_showSpaceCharacterButton; // added by Terada
@@ -140,15 +140,15 @@
 	IBOutlet NSTextField *_kpsetoolField; // added by Terada
 	IBOutlet NSTextField *_bibTeXengineField; // added by Terada
 //	IBOutlet NSButton *_makeatletterButton; // added by Terada
-    
+
     IBOutlet NSTextField *_HtmlHomeField;
-    
+
     IBOutlet NSButton  *_sparkleAutomaticButton;
     IBOutlet NSMatrix  *_sparkleIntervalMatrix;
-    
+
     IBOutlet NSButton  *_useNewToolbarButton;
     IBOutlet NSButton  *_useNewToolbarIconsButton;
-    
+
     IBOutlet NSButtonCell   *_spellCheckCommands;
     IBOutlet NSButtonCell   *_spellCheckParameters;
     IBOutlet NSButtonCell   *_spellCheckComments;
@@ -190,7 +190,7 @@
     BOOL            sparkleTouched;
     BOOL            newToolbarIconsTouched;
     BOOL            xmlTagsTouched;
-   
+
     IBOutlet NSPopUpButton  *dictionaryPopup;
 	IBOutlet NSPopUpButton	*_pageStylePopup;// mitsu 1.29 (O) /*" connected to page style popup button "*/
 	IBOutlet NSMatrix       *_firstPageMatrix;// /*" radio buttons for first page left or right in multipage display "*/
@@ -206,7 +206,7 @@
     IBOutlet NSButton *useOneWindowButton;
     IBOutlet NSButton *useLeftSourceButton;
     IBOutlet NSButton *useRightSourceButton;
-    
+
     // Color Tab
     IBOutlet NSPopUpButton  *LiteStyle;
     IBOutlet NSPopUpButton  *DarkStyle;
@@ -226,7 +226,7 @@
     IBOutlet NSColorWell    *SyntaxIndexColorWell;
     IBOutlet NSColorWell    *FootnoteColorWell;
     IBOutlet NSColorWell    *EntryColorWell;
-    
+
     IBOutlet NSColorWell    *EditorHighlightBracesColorWell;
     IBOutlet NSColorWell    *EditorHighlightContentColorWell;
     IBOutlet NSColorWell    *EditorInvisibleCharColorWell;
@@ -238,15 +238,15 @@
     IBOutlet NSColorWell    *ConsoleAlphaColorWell;
     IBOutlet NSColorWell    *ImageForegroundColorWell;
     IBOutlet NSColorWell    *ImageBackgroundColorWell;
-    
+
     IBOutlet NSColorWell    *BlockCursorColorWell;
-    
+
     IBOutlet NSColorWell    *XMLCommentColorWell;
     IBOutlet NSColorWell    *XMLTagColorWell;
     IBOutlet NSColorWell    *XMLSpecialColorWell;  // for &
     IBOutlet NSColorWell    *XMLParameterColorWell;
     IBOutlet NSColorWell    *XMLValueColorWell;
-    
+
     IBOutlet NSColorWell    *explFunctionColorWell;
     IBOutlet NSColorWell    *explVariableColorWell;
     IBOutlet NSColorWell    *explIntenseFunctionColorWell;
@@ -254,11 +254,11 @@
     IBOutlet NSColorWell    *explmykeyColorWell;
     IBOutlet NSColorWell    *explmykeyArgumentColorWell;
     IBOutlet NSColorWell    *explmsgColorWell;
-    
+
     IBOutlet NSColorWell    *markerParenColorWell;
     IBOutlet NSColorWell    *markerCurlyColorWell;
     IBOutlet NSColorWell    *markerSquareColorWell;
-    
+
     IBOutlet NSButton       *XMLchapter;
     IBOutlet NSButton       *XMLsection;
     IBOutlet NSButton       *XMLsubsection;
@@ -270,9 +270,9 @@
     IBOutlet NSButton       *XMLfigure;
     IBOutlet NSButton       *XMLtable;
     IBOutlet NSButton       *XMLmark;
-    
+
     NSMutableDictionary     *EditingColors;
-    
+
 }
 
 @property (retain) NSFont		*documentFont;			/*" used to track the font that the user has selected for the document window "*/

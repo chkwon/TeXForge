@@ -33,20 +33,10 @@
 #import "TSMacroMenuController.h" // zenitani 1.33
 #import <OgreKit/OgreKit.h>
 // Adam Maxwell addition
-#import <unistd.h>
 #import "TSLayoutManager.h" // added by Terada
 #import "GlobalData.h"
 #import "TSColorSupport.h"
 #import "TSTextView+Copilot.h"
-
-@protocol BDSKCompletionProtocol <NSObject>
-- (NSArray *)completionsForString:(NSString *)searchString;
-- (NSArray *)orderedDocumentURLs;
-@end
-
-static NSString *SERVER_NAME = @"BDSKCompletionServer";
-#define BIBDESK_IDENTIFIER "edu.ucsd.cs.mmccrack.bibdesk"
-static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 // end Adam Maxwell addition
 
 // end addition
@@ -64,52 +54,52 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
         }
     }
     */
-    
+
     if (atLeastSequoia)
     {
         if (([self respondsToSelector:@selector(setMathExpressionCompletionType:)]) &&
                     ([SUD integerForKey:MathExpressionCompletionKey] == 0))
-                    
+
                 {
                     if (@available(macOS 15.0, *))
                         [self setMathExpressionCompletionType: NSTextInputTraitTypeNo];
                 }
-        
+
         else if (([self respondsToSelector:@selector(setMathExpressionCompletionType:)]) &&
                  ([SUD integerForKey:MathExpressionCompletionKey] == 1))
-                 
+
              {
                  if (@available(macOS 15.0, *))
                      [self setMathExpressionCompletionType: NSTextInputTraitTypeYes];
              }
-     
+
        else if (([self respondsToSelector:@selector(setMathExpressionCompletionType:)]) &&
               ([SUD integerForKey:MathExpressionCompletionKey] == 2))
-              
+
           {
               if (@available(macOS 15.0, *))
                   [self setMathExpressionCompletionType: NSTextInputTraitTypeDefault];
           }
-  
- 
+
+
     }
 
-    
+
     [super awakeFromNib];
-    
+
 	TSLayoutManager *layoutManager = [[TSLayoutManager alloc] init];
 	[[self textContainer] replaceLayoutManager:layoutManager];
-	
+
 	[self setSmartInsertDeleteEnabled:[SUD boolForKey:SmartInsertDeleteKey]];
-	
+
 	//10.5
 	if ([super respondsToSelector:@selector(setAutomaticQuoteSubstitutionEnabled:)])
 		[self setAutomaticQuoteSubstitutionEnabled: [SUD boolForKey:AutomaticQuoteSubstitutionKey]];
-	
+
 	//10.5
 	if ([super respondsToSelector:@selector(setAutomaticLinkDetectionEnabled:)])
 		[self setAutomaticLinkDetectionEnabled: [SUD boolForKey:AutomaticLinkDetectionKey]];
-	
+
 	//10.6
 	if ([super respondsToSelector:@selector(setAutomaticDataDetectionEnabled:)])
 		[self setAutomaticDataDetectionEnabled: [SUD boolForKey:AutomaticDataDetectionKey]];
@@ -117,11 +107,11 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 	//10.6
 	if ([super respondsToSelector:@selector(setAutomaticTextReplacementEnabled:)])
 		[self setAutomaticTextReplacementEnabled: [SUD boolForKey:AutomaticTextReplacementKey]];
-	
+
 	//10.6
 	if ([super respondsToSelector:@selector(setAutomaticDashSubstitutionEnabled:)])
 		[self setAutomaticDashSubstitutionEnabled: [SUD boolForKey:AutomaticDashSubstitutionKey]];
-	
+
 }
 
 - (void)moveForwardTo: (NSString *)c;
@@ -129,10 +119,10 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 //    NSLog(@"moveForwardTo");
 //    NSLog(c);
 //    NSLog(@"that's it");
-    
+
     NSRange cursorRange, searchRange, resultRange, finalRange;
     NSString *text, *searchText;
-    
+
     text = [self string];
     cursorRange = [self selectedRange];
     searchRange.location = cursorRange.location + cursorRange.length;
@@ -150,7 +140,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 {
     NSRange cursorRange, searchRange, resultRange, finalRange;
     NSString *text, *searchText;
-    
+
     text = [self string];
     cursorRange = [self selectedRange];
     searchRange.length = cursorRange.location;
@@ -196,7 +186,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
     NSRange     insertRange, newRange, pasteRange;
     NSString    *text;
     NSUInteger  start, end, irrelevant;
-    
+
     NSRange oldRange = [self selectedRange];
     text = [self string];
     [text getLineStart: &start end: &end contentsEnd: &irrelevant forRange: oldRange];
@@ -211,8 +201,8 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
     pasteRange.length = newRange.location - start;
     [self setSelectedRange: pasteRange];
    [self.document doCommentOrIndentForTag: 1];  // replace 1 by better code
-    
-    
+
+
 }
 
 - (void)updateInsertionPointStateAndRestartTimer:(BOOL)restartFlag
@@ -231,12 +221,12 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 
 - (void)drawInsertionPointInRect:(NSRect)rect color:(NSColor *)color turnedOn:(BOOL)flag
 {
- 
+
     NSRect myRect;
     NSColor *myColor;
-    
+
     myColor = [NSColor redColor];
-    
+
     myRect = rect;
 
     myRect.origin.y = myRect.origin.y + 0.2 * myRect.size.height;
@@ -245,10 +235,10 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
     // myRect.size.width = 15;
     // myRect.size.height = 15;
     // myRect.origin.y = myRect.origin.y + 5;
-    
+
     NSBezierPath * path = [NSBezierPath bezierPathWithRect:myRect];
         [path setClip];
- 
+
     [super drawInsertionPointInRect:(NSRect)myRect color:(NSColor *)myColor turnedOn:(BOOL)flag];
 }
 */
@@ -260,7 +250,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 - (void)toggleSmartInsertDelete:(id)sender
 {
 	BOOL value;
-	
+
 	value = [SUD boolForKey:SmartInsertDeleteKey];
 	[SUD setBool: (!value) forKey:SmartInsertDeleteKey];
 	[super toggleSmartInsertDelete:sender];
@@ -269,7 +259,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 - (void)toggleAutomaticQuoteSubstitution:(id)sender // at least 10.5
 {
 	BOOL value;
-	
+
 	if ([super respondsToSelector:@selector(isAutomaticQuoteSubstitutionEnabled)]) {
 		value = [SUD boolForKey:AutomaticQuoteSubstitutionKey];
 		[SUD setBool: (!value) forKey:AutomaticQuoteSubstitutionKey];
@@ -280,7 +270,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 - (void)toggleAutomaticLinkDetection:(id)sender // at least 10.5
 {
 	BOOL value;
-	
+
 	if ([super respondsToSelector:@selector(isAutomaticLinkDetectionEnabled)]) {
 		value = [SUD boolForKey:AutomaticLinkDetectionKey];
 		[SUD setBool: (!value) forKey:AutomaticLinkDetectionKey];
@@ -291,7 +281,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 - (void)toggleAutomaticDataDetection:(id)sender // at least 10.6
 {
 	BOOL value;
-	
+
 	if ([super respondsToSelector:@selector(isAutomaticDataDetectionEnabled)]) {
 		value = [SUD boolForKey:AutomaticDataDetectionKey];
 		[SUD setBool: (!value) forKey:AutomaticDataDetectionKey];
@@ -302,7 +292,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 - (void)toggleAutomaticDashSubstitution:(id)sender // at least 10.6
 {
 	BOOL value;
-	
+
 	if ([super respondsToSelector:@selector(isAutomaticDashSubstitutionEnabled)]) {
 		value = [SUD boolForKey:AutomaticDashSubstitutionKey];
 		[SUD setBool: (!value) forKey:AutomaticDashSubstitutionKey];
@@ -313,14 +303,14 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 - (void)toggleAutomaticTextReplacement:(id)sender // at least 10.6
 {
 	BOOL value;
-	
+
 	if ([super respondsToSelector:@selector(isAutomaticTextReplacementEnabled)]) {
 		value = [SUD boolForKey:AutomaticTextReplacementKey];
 		[SUD setBool: (!value) forKey:AutomaticTextReplacementKey];
 		[super toggleAutomaticTextReplacement:sender];
 		}
 }
- 
+
 #pragma mark =====pdfSync=====
 
 
@@ -392,17 +382,17 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 - (void)mouseDown:(NSEvent *)theEvent
 {
   //  [[NSColorPanel sharedColorPanel] close];
-    
+
 	NSMutableDictionary	*mySelectedTextAttributes;
 
 	if ([theEvent modifierFlags] & NSAlternateKeyMask)
 		_alternateDown = YES;
 	else
 		_alternateDown = NO;
-    
-	
+
+
 	// koch; Dec 13, 2003
-	
+
 	// Trigger PDF sync when a click occurs while cmd is pressed (and alt is not pressed).
 	if (!([theEvent modifierFlags] & NSAlternateKeyMask) && ([theEvent modifierFlags] & NSCommandKeyMask)) {
 		[self doSync: theEvent];
@@ -705,14 +695,14 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
     NSRange     mySelectedRange, myLineRange, closeRange, typeRange, searchRange, finalRange, selectRange, myNewSelectedRange;
     NSRange     myFinalRange, finalStartRange, finalEndRange, finalCommentRange, fullCommentRange, tempRange;
     NSUInteger  stringLength;
-    
+
 	textString = [self string];
 	if (textString == nil)
 		return replacementRange;
     stringLength = [textString length];
 
     replacementRange = [super selectionRangeForProposedRange: proposedSelRange granularity: granularity];
-    
+
 
     if (_alternateDown)
         {
@@ -721,7 +711,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
         if (mySelectedRange.location != NSNotFound)
         {
             newString = [textString substringWithRange:mySelectedRange];
-            
+
             if ([newString isEqualToString: @"\\begin"])
             {
                 myLineRange = [textString lineRangeForRange: mySelectedRange];
@@ -739,7 +729,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                         firstString = [[@"\\begin{" stringByAppendingString: typeString] stringByAppendingString: @"}"];
                         secondString = [[@"\\end{" stringByAppendingString: typeString] stringByAppendingString: @"}"];
                         thirdString = @"%";
-                        
+
                         myFinalRange.location = mySelectedRange.location;
                         searchRange.location = mySelectedRange.location + 3;
                         searchRange.length = stringLength - searchRange.location;
@@ -752,7 +742,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                                 finalCommentRange = [searchString rangeOfString: thirdString];
                                 if (finalCommentRange.location != NSNotFound)
                                     uchar = [textString characterAtIndex: (searchRange.location + finalCommentRange.location - 1)];
-                                
+
                                 if (((finalCommentRange.location != NSNotFound) && ( uchar != '\\')) &&
                                     ((finalStartRange.location == NSNotFound) || (finalStartRange.location > finalCommentRange.location))
                                         && ((finalEndRange.location == NSNotFound) || (finalEndRange.location > finalCommentRange.location)))
@@ -763,7 +753,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                                                 searchRange.location = myLineRange.location + myLineRange.length - 1;
                                                 searchRange.length = stringLength - searchRange.location;
                                              }
-                                
+
                                 else if (finalEndRange.location != NSNotFound)
                                     {
                                         if ((finalStartRange.location != NSNotFound) && (finalStartRange.location < finalEndRange.location))
@@ -781,7 +771,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                                     }
                             else level = -1;
                         }
-                        
+
                         if (level == 0)
                         {
                             myFinalRange.length = searchRange.location - 1 + [secondString length] - myFinalRange.location;
@@ -790,14 +780,14 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                     }
                 }
             }
-         
-            
-            
-            
-        
-    
-    
-    
+
+
+
+
+
+
+
+
             else if ([newString isEqualToString: @"\\end"]) {
                 myLineRange = [textString lineRangeForRange: mySelectedRange];
                 myLineRange.length = myLineRange.length - (mySelectedRange.location + 4 - myLineRange.location);
@@ -814,11 +804,11 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                         firstString = [[@"\\begin{" stringByAppendingString: typeString] stringByAppendingString: @"}"];
                         secondString = [[@"\\end{" stringByAppendingString: typeString] stringByAppendingString: @"}"];
                         thirdString = @"%";
-                        
+
                         searchRange.location = 0;
                         searchRange.length = mySelectedRange.location;
                         level = 1;
-                        
+
                         while (level > 0)
                         {
                             searchString = [textString substringWithRange: searchRange];
@@ -839,8 +829,8 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                                 }
                             else
                             {   tempRange.length = 0; tempRange.location = 0; }
-                            
-                            
+
+
                             if ((tempRange.length != 0) &&
                                 ((finalStartRange.location == NSNotFound) || (finalStartRange.location < (myLineRange.location + myLineRange.length))) &&
                                 ((finalEndRange.location == NSNotFound) || (finalEndRange.location < (myLineRange.location + myLineRange.length))))
@@ -854,7 +844,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                                 searchRange.location = tempRange.location;
                                 searchRange.length = tempRange.length;
                             }
-                            
+
                             else if (finalStartRange.location != NSNotFound)
                             {
                                 if ((finalEndRange.location != NSNotFound) && (finalEndRange.location > finalStartRange.location))
@@ -872,7 +862,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                             }
                             else level = -1;
                         }
-                        
+
                         if (level == 0)
                         {
                             myFinalRange.location = finalStartRange.location;
@@ -880,12 +870,12 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                             return myFinalRange;
                         }
                     }
-                        
+
                 }
-                
+
             }
-            
-     
+
+
         else if ([newString isEqualToString: @"-"]) { // search for "<!--" and associate with $"-->"
             myNewSelectedRange = mySelectedRange;
             firstString = @"<!--";
@@ -906,7 +896,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                             return selectRange;
                         }
                     }
-                
+
                 myNewSelectedRange.location = myNewSelectedRange.location - 1;
                 myNewSelectedRange.length = myNewSelectedRange.length;
                 aString = [textString substringWithRange:myNewSelectedRange];
@@ -923,7 +913,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                             return selectRange;
                         }
                     }
-                        
+
                 myNewSelectedRange.location = mySelectedRange.location;
                 myNewSelectedRange.length = mySelectedRange.length + 2;
                 aString = [textString substringWithRange: myNewSelectedRange];
@@ -940,7 +930,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                         return selectRange;
                     }
                 }
-                
+
                 myNewSelectedRange.location = mySelectedRange.location - 1;
                 myNewSelectedRange.length = 3;
                 aString = [textString substringWithRange: myNewSelectedRange];
@@ -959,13 +949,13 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                   }
             }
         }
-            
-        
-        
-            
-    
+
+
+
+
+
         else  { // search for "<word" and associate with "</word>"
-            
+
             myNewSelectedRange = mySelectedRange;
                 firstString = [@"<" stringByAppendingString: newString];
                 secondString = [[@"</" stringByAppendingString: newString] stringByAppendingString:@">"];
@@ -975,12 +965,12 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                      aString = [textString substringWithRange:myNewSelectedRange];
                      if ([aString isEqualToString: firstString])
                      {
-                     
+
                myFinalRange.location = mySelectedRange.location - 1;
                searchRange.location = mySelectedRange.location + 3;
                searchRange.length = stringLength - searchRange.location;
                level = 1;
-               
+
                while ((level > 0) && (searchRange.location < stringLength))
                {
                searchString = [textString substringWithRange: searchRange];
@@ -1003,14 +993,14 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                }
                else level = -1;
                }
-               
+
                if (level == 0)
                {
                myFinalRange.length = searchRange.location - 1 + [secondString length] - myFinalRange.location;
                return myFinalRange;
                }
                }
-               
+
                      else {
                          mySelectedRange = [self selectedRange];
                          if ((mySelectedRange.location > 1) && (mySelectedRange.length < [textString length]))
@@ -1024,7 +1014,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                     searchRange.location = 0;
                     searchRange.length = mySelectedRange.location;
                     level = 1;
-                    
+
                     while (level > 0)
                     {
                         searchString = [textString substringWithRange: searchRange];
@@ -1047,7 +1037,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                         }
                         else level = -1;
                     }
-                    
+
                     if (level == 0)
                     {
                         myFinalRange.location = finalStartRange.location;
@@ -1055,23 +1045,23 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                         return myFinalRange;
                     }
             }
-               
-                
+
+
             }
         }
-    
+
                  }
-            
+
         }
- 
 
-        
-  
- 
-}
+
+
+
 
 }
-         
+
+}
+
 // The section below was extensively modified by Koch in September, 2018.  Before the modification,
 // clicking on } located the corresponding {, but the search for matches extended to comments,
 // \% was ignored, and \} and \{ were included as matches
@@ -1082,7 +1072,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
         // added by Terada (from this line)
         BOOL flag;
         unichar c;
-        
+
         if(replacementRange.location < [textString length]){
             c = [textString characterAtIndex:replacementRange.location];
             if((c != '{') && (c != '(') && (c != '[') && (c != '<') && (c != ' ')){  // Koch, July 19, 2013, double click on space selects space
@@ -1093,7 +1083,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                         // Terada, 2/5/2024
                         //    if (((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) || (c == '@' && [SUD boolForKey:MakeatletterEnabledKey])
                         //         || (((c == '@') || (c == '_') || (c == ':')) && [SUD boolForKey:expl3SyntaxColoringKey]) ){
-                                
+
                             if (((c >= 'A') && (c <= 'Z')) || ((c >= 'a') && (c <= 'z')) || (c == '@' && [SUD boolForKey:MakeatletterEnabledKey])
                                 || (((c == '@') || (c == '_') || (c == ':')) && self.document.useExplColor) ){
 
@@ -1107,7 +1097,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                         flag = NO;
                     }
                 } while (flag);
-                
+
                 do {
                     if (replacementRange.location + replacementRange.length  < [textString length]){
                         c = [textString characterAtIndex: replacementRange.location + replacementRange.length];
@@ -1129,9 +1119,9 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                 } while (flag);
             }
         }
-		
+
         // added by Terada (until this line)
-		
+
         if (replacementRange.location >= 1 && [textString characterAtIndex: replacementRange.location-1] == BACKSLASH)
 		{
 			replacementRange.location--;
@@ -1142,7 +1132,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 
 	if ((proposedSelRange.length != 0) || (granularity != NSSelectByWord))
         return replacementRange;
-	
+
 	if (_alternateDown)
 		return replacementRange;
 
@@ -1155,8 +1145,8 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 	// If the users double clicks an opening or closing parenthesis / bracket / brace,
 	// then the following code will extend the selection to the matching opposite
 	// parenthesis / bracket / brace.
-    
-    
+
+
     NSUInteger start, lineEnd, unmodifiedLineEnd, contentsEnd;
     NSRange rangeInLine;
     NSRange newSearchRange, commentRange;
@@ -1166,7 +1156,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
     char c1;
     NSInteger whichLine;
 
-    
+
 	if ((uchar == '}') || (uchar == ')') || (uchar == ']') || (uchar == '>')) { // modified by Terada
         j = i;
 		rightpar = uchar;
@@ -1178,25 +1168,25 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 			leftpar = '<'; // added by Terada
 		else
 			leftpar = '[';
-        
-        
+
+
         nestingLevel = 1;
 		done = NO;
 		// Try searching to the left to find a match...
-        
-        
+
+
         while ((i > 0) && (! done)) {
             i--;
         // find current line containing key i
-            
+
             rangeInLine.location = i;
             rangeInLine.length = 1;
             [textString getLineStart: &start end: &lineEnd contentsEnd: &contentsEnd forRange: rangeInLine];
-    
-            
+
+
         // truncate this line, removing comments at the end
-       
-            
+
+
             commentFound = NO;
             newSearchRange.location = start;
             newSearchRange.length = lineEnd - start;
@@ -1208,11 +1198,11 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                     lineEnd = start + commentRange.location ;
                     commentFound = YES;
                 }
-             
-            
+
+
         // at this point, we are done except in the very unusual case that a line has a % but the first occurrence is \%.
         // In this special case, we will use brute force to search the line character by character to see if it needs to be truncated
-    
+
             if ((commentRange.location != NSNotFound) && (! commentFound))
             {   commentFound = NO;
                 k = start;
@@ -1224,15 +1214,15 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                                 lineEnd = k;
                             }
                         k++;
-                            
+
                     }
                 while (( ! commentFound) && (k < lineEnd));
             }
-     
-            
-            
+
+
+
         // search through the line to find a match
-            
+
             if (i >= lineEnd)
                 i = lineEnd - 1;
             while ((start <= i) && (i < lineEnd) && (! done)) {
@@ -1250,7 +1240,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                 i--;
             }
         }
- 
+
     }
 
 	else if ((uchar == '{') || (uchar == '(') || (uchar == '[') ||  (uchar == '<') ) { // modified by Terada
@@ -1264,31 +1254,31 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 			rightpar = '>'; // added by Terada
 		else
 			rightpar = ']';
-        
+
         nestingLevel = 1;
         done = NO;
         whichLine = 0;
         // Try searching to the right to find a match...
-        
+
         while  ( (i < (length - 1)) && (! done)) {
             i++;
- 
+
             // find current line containing key i
-            
+
             rangeInLine.location = i;
             rangeInLine.length = 1;
             [textString getLineStart: &start end: &lineEnd contentsEnd: &contentsEnd forRange: rangeInLine];
             whichLine++;
             unmodifiedLineEnd = lineEnd;
-            
+
             // truncate this line, removing comments at the end
-            
-            
+
+
             commentFound = NO;
             newSearchRange.location = start;
             newSearchRange.length = lineEnd - start;
             textLine =  [textString substringWithRange: newSearchRange];
-            
+
             commentRange = [textLine rangeOfString: @"%"];
             if ((commentRange.location != NSNotFound) &&
                 (((commentRange.location == 0) || ([textLine characterAtIndex: (commentRange.location - 1)] != '\\'))))
@@ -1296,11 +1286,11 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
                 lineEnd = start + commentRange.location ;
                 commentFound = YES;
             }
-            
-            
+
+
             // at this point, we are done except in the very unusual case that a line has a % but the first occurrence is \%.
             // In this special case, we will use brute force to search the line character by character to see if it needs to be truncated
-         
+
             if ((commentRange.location != NSNotFound) && (! commentFound))
             {   commentFound = NO;
                 k = start;
@@ -1313,17 +1303,17 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
          //               NSLog(@"end of line %d", k);
                     }
                     k++;
-                    
+
                 }
                 while (( ! commentFound) && (k < lineEnd));
             }
-          
-            
-         
-            
+
+
+
+
             // search through the line to find a match
 
-      
+
             if (whichLine > 1) i = start;
             while ((start <= i) && (i < lineEnd) && (! done)) {
                 uchar = [textString characterAtIndex:i];
@@ -1342,22 +1332,22 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
             i = unmodifiedLineEnd;
         }
     }
-    
 
-        
-        
-        
-        
+
+
+
+
+
    /*
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
+
+
+
+
+
+
+
+
 		nestingLevel = 1;
 		done = NO;
 		while ((i < (length - 1)) && (! done)) {
@@ -1375,7 +1365,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 		}
 	}
     */
-    
+
 	return replacementRange;
 }
 
@@ -1383,7 +1373,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 // added by mitsu --(A) g_texChar filtering
 - (void)insertText:(id)aString
 {
-    
+
     // The following is an Emoji Palette fix by Yusuke Terada
     if (![aString isKindOfClass:[NSString class]]) {
         [super insertText:aString];
@@ -1469,10 +1459,10 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 
 			// Replace the text--imitate what happens in ordinary editing
 			NSRange	selectedRange = [self selectedRange];
-			if ([self shouldChangeTextInRange:selectedRange replacementString:string]) {
-				[self replaceCharactersInRange:selectedRange withString:string];
-				[self didChangeText];
-			}
+				if ([self shouldChangeTextInRange:selectedRange replacementString:string]) {
+					[self replaceCharactersInRange:selectedRange withString:string];
+					[self didChangeText];
+				}
 			// by returning YES, "Undo Paste" menu item will be set up by system
 			return YES;
 		}
@@ -1500,7 +1490,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 	completionListLocation = 0; // location to start search in the list
 	textLocation = NSNotFound; // location of insertion point
 
-    
+
 	return self;
 }
 
@@ -1513,9 +1503,9 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 {
     NSTextView  *firstTextView;
     NSFont      *thisFont;
-    
+
     [super changeFont:sender];
-    
+
     firstTextView = [self.document textView1];
     thisFont = self.font;
 
@@ -1523,30 +1513,30 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
         [self.document textView2].font = thisFont;
     else
         [self.document textView1].font = thisFont;
-    
+
     [self fixupTabs];
 }
- 
+
 
 - (void)fixupTabs
 {
     NSMutableParagraphStyle *paragraphStyle = [[self defaultParagraphStyle] mutableCopy];
-    
+
     if (!paragraphStyle) {
         paragraphStyle = [NSParagraphStyle.defaultParagraphStyle mutableCopy];
     }
-    
+
     CGFloat charWidth = [[self font] advancementForGlyph:(NSGlyph)' '].width;
     paragraphStyle.defaultTabInterval = charWidth * [SUD integerForKey: tabsKey];
     paragraphStyle.tabStops = @[];
-    
+
     self.defaultParagraphStyle = paragraphStyle;
-    
+
     NSMutableDictionary *typingAttributes = [[self typingAttributes] mutableCopy];
     typingAttributes[NSParagraphStyleAttributeName] = paragraphStyle;
     typingAttributes[NSFontAttributeName] = [self font];
     self.typingAttributes = typingAttributes;
-    
+
     NSRange rangeOfChange = NSMakeRange(0, [[self string] length]);
     [self shouldChangeTextInRange:rangeOfChange replacementString:nil];
     [[self textStorage] setAttributes:typingAttributes range:rangeOfChange];
@@ -1560,7 +1550,7 @@ static const CFAbsoluteTime MAX_WAIT_TIME = 10.0;
 
 
 
-static inline 
+static inline
 NSRange SafeBackwardSearchRange(NSRange startRange, NSUInteger seekLength){
     NSUInteger minLoc = ( (startRange.location > seekLength) ? seekLength : startRange.location);
     return NSMakeRange(startRange.location - minLoc, minLoc);
@@ -1570,6 +1560,59 @@ static inline
 NSRange SafeForwardSearchRange( NSUInteger startLoc, NSUInteger seekLength, NSUInteger maxLoc ){
     seekLength = ( (startLoc + seekLength > maxLoc) ? maxLoc - startLoc : seekLength );
     return NSMakeRange(startLoc, seekLength);
+}
+
+static inline BOOL
+TSIsTeXCommandCharacter(unichar character)
+{
+    return [[NSCharacterSet letterCharacterSet] characterIsMember:character] || character == '@';
+}
+
+static NSString *
+TSCommandNameBeforeAnchor(NSString *string, NSUInteger anchorLocation)
+{
+    if (anchorLocation == NSNotFound || anchorLocation == 0 || anchorLocation > [string length])
+        return nil;
+
+    NSCharacterSet *whitespaceSet = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+    NSInteger index = (NSInteger)anchorLocation - 1;
+
+    while (index >= 0 && [whitespaceSet characterIsMember:[string characterAtIndex:(NSUInteger)index]])
+        index--;
+
+    if (index >= 0 && [string characterAtIndex:(NSUInteger)index] == '*') {
+        index--;
+        while (index >= 0 && [whitespaceSet characterIsMember:[string characterAtIndex:(NSUInteger)index]])
+            index--;
+    }
+
+    NSUInteger end = (NSUInteger)index + 1;
+    while (index >= 0 && TSIsTeXCommandCharacter([string characterAtIndex:(NSUInteger)index]))
+        index--;
+
+    NSUInteger start = (NSUInteger)index + 1;
+    if (start == end || index < 0 || [string characterAtIndex:(NSUInteger)index] != '\\')
+        return nil;
+
+    return [string substringWithRange:NSMakeRange(start, end - start)];
+}
+
+static BOOL
+TSIsCitationCommandName(NSString *commandName)
+{
+    if ([commandName length] == 0)
+        return NO;
+
+    if ([commandName caseInsensitiveCompare:@"bibentry"] == NSOrderedSame)
+        return YES;
+
+    return [commandName rangeOfString:@"cite" options:NSCaseInsensitiveSearch].location != NSNotFound;
+}
+
+static inline BOOL
+TSHasCitationCommandBeforeAnchor(NSString *string, NSUInteger anchorLocation)
+{
+    return TSIsCitationCommandName(TSCommandNameBeforeAnchor(string, anchorLocation));
 }
 
 #pragma mark Reference-searching heuristics
@@ -1587,80 +1630,73 @@ NSRange SafeForwardSearchRange( NSUInteger startLoc, NSUInteger seekLength, NSUI
 // ** After all of this, we've searched back to a brace, and then checked for a cite command with two optional parameters
 
 - (BOOL)isBibTeXCitation:(NSRange)braceRange{
-    
+
     NSString *str = [self string];
-    NSRange citeSearchRange = NSMakeRange(NSNotFound, 0);
     NSRange doubleBracketRange = NSMakeRange(NSNotFound, 0);
-    
+
     NSRange rightBracketRange = [str rangeOfString:@"]" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange(braceRange, 1)]; // see if there are any optional parameters
-    
+
     // check for jurabib \citefield, which has two mandatory parameters in curly braces, e.g. \citefield[pagerange]{title}{cite:key}
     NSRange doubleBraceRange = [str rangeOfString:@"}{" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange( NSMakeRange(braceRange.location + 1, 1), 10)];
-    
+
     if(rightBracketRange.location == NSNotFound && doubleBraceRange.location == NSNotFound){ // no options and not jurabib, so life is easy; look backwards 10 characters from the brace and see if there's a citecommand
-        citeSearchRange = SafeBackwardSearchRange(braceRange, 20);
-        if([str rangeOfString:@"cite" options:NSBackwardsSearch | NSLiteralSearch range:citeSearchRange].location != NSNotFound ||
-           [str rangeOfString:@"bibentry" options:NSBackwardsSearch | NSLiteralSearch range:citeSearchRange].location != NSNotFound){
+        if (TSHasCitationCommandBeforeAnchor(str, braceRange.location)) {
             return YES;
         } else {
             return NO;
         }
     }
-    
+
     if(doubleBraceRange.location != NSNotFound) // reset the brace range if we have jurabib
         braceRange = [str rangeOfString:@"{" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange(doubleBraceRange, 10)];
-    
+
     NSRange leftBracketRange = [str rangeOfString:@"[" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange(braceRange, 100)]; // first occurrence of it, looking backwards
     // next, see if we have two optional parameters; this range is tricky, since we have to go forward one, then do a safe backward search over the previous characters
     if(leftBracketRange.location != NSNotFound)
-        doubleBracketRange = [str rangeOfString:@"][" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange( NSMakeRange(leftBracketRange.location + 1, 3), 3)]; 
-    
+        doubleBracketRange = [str rangeOfString:@"][" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange( NSMakeRange(leftBracketRange.location + 1, 3), 3)];
+
     if(doubleBracketRange.location != NSNotFound) // if we had two parameters, find the last opening bracket
         leftBracketRange = [str rangeOfString:@"[" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange(doubleBracketRange, 50)];
-    
+
     if(leftBracketRange.location != NSNotFound){
-        citeSearchRange = SafeBackwardSearchRange(leftBracketRange, 20); // could be larger
-        if([str rangeOfString:@"cite" options:NSBackwardsSearch | NSLiteralSearch range:citeSearchRange].location != NSNotFound ||
-           [str rangeOfString:@"bibentry" options:NSBackwardsSearch | NSLiteralSearch range:citeSearchRange].location != NSNotFound){
+        if (TSHasCitationCommandBeforeAnchor(str, leftBracketRange.location)) {
             return YES;
         } else {
             return NO;
         }
     }
-    
+
     if(doubleBraceRange.location != NSNotFound){ // jurabib with no options on it
-        citeSearchRange = SafeBackwardSearchRange(braceRange, 20); // could be larger
-        if([str rangeOfString:@"cite" options:NSBackwardsSearch | NSLiteralSearch range:citeSearchRange].location != NSNotFound ||
-           [str rangeOfString:@"bibentry" options:NSBackwardsSearch | NSLiteralSearch range:citeSearchRange].location != NSNotFound){
+        if (TSHasCitationCommandBeforeAnchor(str, braceRange.location)) {
             return YES;
         } else {
             return NO;
         }
-    }        
-    
+    }
+
     return NO;
 }
 
 - (NSRange)citeKeyRange{
-    
+
     NSString *str = [self string];
     NSRange r = [self selectedRange]; // here's the insertion point
     NSRange commaRange;
     NSRange finalRange;
     NSUInteger maxLoc;
-    
+
     NSRange braceRange = [str rangeOfString:@"{" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange(r, 100)]; // look for an opening brace
     NSRange closingBraceRange = [str rangeOfString:@"}" options:NSBackwardsSearch | NSLiteralSearch range:SafeBackwardSearchRange(r, 100)];
-    
+
     if(closingBraceRange.location != NSNotFound && closingBraceRange.location > braceRange.location) // if our { has a matching }, don't bother
         return finalRange = NSMakeRange(NSNotFound, 0);
-    
+
     if(braceRange.location != NSNotFound){ // may be TeX
         commaRange = [str rangeOfString:@"," options:NSBackwardsSearch | NSLiteralSearch range:NSUnionRange(braceRange, r)]; // exclude commas in the optional parameters
     } else { // definitely not TeX
         return finalRange = NSMakeRange(NSNotFound, 0);
     }
-    
+
     if([self isBibTeXCitation:braceRange]){
         if(commaRange.location != NSNotFound && r.location > commaRange.location){
             maxLoc = ( (commaRange.location + 1 > r.location) ? commaRange.location : commaRange.location + 1 );
@@ -1672,62 +1708,62 @@ NSRange SafeForwardSearchRange( NSUInteger startLoc, NSUInteger seekLength, NSUI
     } else {
         finalRange = NSMakeRange(NSNotFound, 0);
     }
-    
+
     return finalRange;
 }
 
 /*
 - (NSRange)refLabelRange{
-    
+
     NSString *s = [self string];
     NSRange r = [self selectedRange];
     NSRange searchRange = SafeBackwardSearchRange(r, 12);
-    
+
     // look for standard \ref
     NSRange foundRange = [s rangeOfString:@"\\ref{" options:NSBackwardsSearch range:searchRange];
-    
+
     if(foundRange.location == NSNotFound){
-        
+
         // maybe it's a pageref
         foundRange = [s rangeOfString:@"\\pageref{" options:NSBackwardsSearch range:searchRange];
-        
+
         // could also be an eqref (amsmath)
         if(foundRange.location == NSNotFound)
             foundRange = [s rangeOfString:@"\\eqref{" options:NSBackwardsSearch range:searchRange];
     }
     unsigned idx = NSMaxRange(foundRange);
     idx = (idx < r.location ? r.location - idx : 0);
-    
+
     return NSMakeRange(NSMaxRange(foundRange), idx);
 }
  */
-/* The previous procedure was modified by Tammo Jan Dijkema to handle BibDesk autocompletion for \autoref 
+/* The previous procedure was modified by Tammo Jan Dijkema to handle reference completion for \autoref
  (which is included in the package hyperref).*/
 
 - (NSRange)refLabelRange{
-	
+
 	NSString *s = [self string];
 	NSRange r = [self selectedRange];
 	NSRange searchRange = SafeBackwardSearchRange(r, 12);
-	
+
 	// look for standard \ref
 	NSRange foundRange = [s rangeOfString:@"\\ref{" options:NSBackwardsSearch range:searchRange];
-	
+
 	if(foundRange.location == NSNotFound)
 		// maybe it's a pageref
 		foundRange = [s rangeOfString:@"\\pageref{" options:NSBackwardsSearch range:searchRange];
-	
+
 	if(foundRange.location == NSNotFound)
 		// could also be an eqref (amsmath)
 		foundRange = [s rangeOfString:@"\\eqref{" options:NSBackwardsSearch range:searchRange];
-	
+
 	if(foundRange.location == NSNotFound)
 		// could also be an autoref (hyperref)
 		foundRange = [s rangeOfString:@"\\autoref{" options:NSBackwardsSearch range:searchRange];
-	
+
 	NSUInteger idx = NSMaxRange(foundRange);
 	idx = (idx < r.location ? r.location - idx : 0);
-	
+
 	return NSMakeRange(NSMaxRange(foundRange), idx);
 }
 
@@ -1737,7 +1773,7 @@ NSRange SafeForwardSearchRange( NSUInteger startLoc, NSUInteger seekLength, NSUI
 
 // Override usual behaviour so we can have dots, colons and hyphens in our cite keys
 - (NSRange)rangeForBibTeXUserCompletion{
-    
+
     NSRange range = [self citeKeyRange];
     return range.location == NSNotFound ? [self refLabelRange] : range;
 }
@@ -1746,10 +1782,10 @@ static BOOL isCompletingTeX = NO;
 
 // we replace this method since the completion controller uses it to update
 - (NSRange)rangeForUserCompletion{
-    
+
     NSRange range = [self rangeForBibTeXUserCompletion];
     isCompletingTeX = range.location != NSNotFound;
-    
+
     return range.location != NSNotFound ? range : [super rangeForUserCompletion];
 }
 
@@ -1759,186 +1795,79 @@ BDIndexOfItemInArrayWithPrefix(NSArray *array, NSString *prefix)
 {
     NSUInteger idx, count = [array count];
     for(idx = 0; idx < count; idx++){
-        if([[array objectAtIndex:idx] hasPrefix:prefix])
+        if([[array objectAtIndex:idx] rangeOfString:prefix options:NSAnchoredSearch | NSCaseInsensitiveSearch].location != NSNotFound)
             return idx;
     }
-    
+
     return -1;
 }
-/* Establishes the DO connection to BibDesk and asks it for completions.  Also tells BibDesk to open
- files that we need for completion, launching it if necessary.  The return value is an array of
- KVC-compliant completion objects from BibDesk, without any polishing.
- */
-
-static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
-{
-    // !!! NSWorkspace will unhide the app regardless, which is annoying, so the caller should only pass fileURLs if necessary (using LS directly doesn't help, either)
-    OSStatus err;
-    CFURLRef appURL = NULL;
-    err = LSFindApplicationForInfo('BDSK', CFSTR(BIBDESK_IDENTIFIER), NULL, NULL, &appURL);
-    
-    if (noErr == err) {
-        LSLaunchURLSpec spec;
-        memset(&spec, 0, sizeof(LSLaunchURLSpec));
-        spec.appURL = appURL;
-        spec.itemURLs = (CFArrayRef)CFBridgingRetain(fileURLs);
-        spec.launchFlags = kLSLaunchAndHide | kLSLaunchDontSwitch;
-        err = LSOpenFromURLSpec(&spec, NULL);
-        
-        CFRelease(appURL);
-    }
-    return noErr == err;
-}
-
-- (void)connectToBibDesk
-{
-    if ((nil != [self.document completionConnection]) && (nil != [self.document completionServer]))
-        return;
-    
-    NSConnection *connection = [NSConnection connectionWithRegisteredName:SERVER_NAME host:nil];
-    
-    // !!! launchBibDeskAndOpenURLs returns before the application is fully launched, so the first connect can fail
-    
-    // launch the app if we don't get a connection
-    if (nil == connection) {
-        if (launchBibDeskAndOpenURLs(nil) == NO) {
-            fprintf(stderr, "Error: unable to find and launch BibDesk\n");
-        }
-        
-        // !!! hack in case the app isn't finished launching; it's only a heuristic, but better than connection failures
-        CFAbsoluteTime stopTime = CFAbsoluteTimeGetCurrent() + MAX_WAIT_TIME;
-        while (nil == connection && CFAbsoluteTimeGetCurrent() < stopTime) {
-            usleep(200);
-            connection = [NSConnection connectionWithRegisteredName:SERVER_NAME host:nil];
-        }
-    }
-    
-    // give up after 10 seconds of waiting; no idea what's wrong here, but BibDesk could be too old
-    if (nil == connection) {
-        fprintf(stderr, "Error: unable to connect to BibDesk\n");
-        fprintf(stderr, "*** You must be running BibDesk 1.3.0 or later to use this program! ***\n");
-    }
-    
-    // if we don't set these explicitly, timeout never seems to take place
-    [connection setRequestTimeout:MAX_WAIT_TIME];
-    [connection setReplyTimeout:MAX_WAIT_TIME];
-    
-	[self.document setCompletionConnection:connection ];
-    @try {
-        [self.document setCompletionServer:[[self.document completionConnection] rootProxy] ];
-        [[self.document completionServer] setProtocolForProxy:@protocol(BDSKCompletionProtocol)];
-		[self.document registerForConnectionDidDieNotification];
-    }
-    @catch(id exception) {
-        fprintf(stderr, "Error: caught exception \"%s\" while contacting BibDesk\n", [[exception description] UTF8String]);
-        fprintf(stderr, "*** You must be running BibDesk 1.3.0 or later to use this program! ***\n");
-    }    
-}    
-
-- (NSArray *)completionsWithSearchString:(NSString *)searchTerm
-{    
-    [self connectToBibDesk];
-    NSArray *completions = nil;
-    
-    @try {
-        completions = [[self.document completionServer] completionsForString:searchTerm];
-    }
-    @catch(id exception) {
-        fprintf(stderr, "Error: caught exception \"%s\" while contacting BibDesk\n", [[exception description] UTF8String]);
-        fprintf(stderr, "*** You must be running BibDesk 1.3.0 or later to use this program! ***\n");
-        completions = nil;
-    }    
-    return completions;
-}
-
-#define COMPLETIONSTRING @" (BibDesk)"
-
-
-// Provide own completions based on results by Bibdesk.  
-// Should check whether Bibdesk is available first.  
-// Setting initial selection in list to second item doesn't work.  
-// Requires X.3
+// Provide cite/ref completions for AppKit's standard completion panel.
+// Cite items come from the auto-loaded in-memory bibliography cache; ref items
+// are scanned from the current document's text.
 - (NSArray *)completionsForPartialWordRange:(NSRange)charRange indexOfSelectedItem:(NSInteger *)idx{
 
-	NSString *s = [self string];
+    NSString *s = [self string];
     NSRange refLabelRange = [self refLabelRange];
-	BOOL _bibDeskCompletion = [SUD boolForKey:BibDeskCompletionKey];
-    
+
     // don't bother checking for a citekey if this is a \ref
-    NSRange keyRange = ( (refLabelRange.location == NSNotFound) ? [self citeKeyRange] : NSMakeRange(NSNotFound, 0) ); 
+    NSRange keyRange = ( (refLabelRange.location == NSNotFound) ? [self citeKeyRange] : NSMakeRange(NSNotFound, 0) );
     NSMutableArray *returnArray = [NSMutableArray array];
-    
-	if ((keyRange.location != NSNotFound) && (_bibDeskCompletion)) {
-        
+
+    if (keyRange.location != NSNotFound) {
+
         NSString *end = [[s substringWithRange:keyRange] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-		
-        // array of KVC objects
-        NSEnumerator *compEnum = [[self completionsWithSearchString:end] objectEnumerator];
-        id object;
-        while ((object = [compEnum nextObject])) {
-            NSInteger nameCount = [[object valueForKey:@"numberOfNames"] integerValue];
-            NSString *title = [object valueForKey:@"title"];
-            NSString *citeKey = [object valueForKey:@"citeKey"];
-            NSString *name = [object valueForKey:@"lastName"];
-            if (nil == name)
-                name = @"";
-            else if (nameCount > 2)
-                name = [name stringByAppendingString:@" et al"];
-            NSString *compValue = [NSString stringWithFormat:@"%@%@%% %@, %@", citeKey, COMPLETIONSTRING, name, title];
-            [returnArray addObject:compValue];
-        }
-                
+        NSArray *completions = [self.document bibliographyCompletionsForSearchString:end];
+
+        for (NSString *completion in completions)
+            [returnArray addObject:completion];
+
         *idx = BDIndexOfItemInArrayWithPrefix(returnArray, end);
-        
-	} else if(refLabelRange.location != NSNotFound){
+
+    } else if(refLabelRange.location != NSNotFound){
         NSString *hint = [s substringWithRange:refLabelRange];
-        
+
         NSScanner *labelScanner = [[NSScanner alloc] initWithString:s];
         [labelScanner setCharactersToBeSkipped:nil];
         NSString *scanned = nil;
         NSMutableSet *setOfLabels = [NSMutableSet setWithCapacity:10];
         NSString *scanFormat;
-        
+
         scanFormat = [@"\\label{" stringByAppendingString:hint];
-        
+
         while(![labelScanner isAtEnd]){
-            [labelScanner scanUpToString:scanFormat intoString:nil]; // scan for strings with \label{hint in them
-            [labelScanner scanString:@"\\label{" intoString:nil];    // scan away the \label{
-            [labelScanner scanUpToString:@"}" intoString:&scanned];  // scan up to the next brace
-            if(scanned != nil) [setOfLabels addObject:[scanned stringByAppendingString:COMPLETIONSTRING]]; // add it to the set
+            [labelScanner scanUpToString:scanFormat intoString:nil];   // scan for strings with \label{hint
+            [labelScanner scanString:@"\\label{" intoString:nil];      // scan away the \label{
+            [labelScanner scanUpToString:@"}" intoString:&scanned];    // scan up to the next brace
+            if(scanned != nil) [setOfLabels addObject:scanned];        // add the bare label
         }
-      //  [labelScanner release];
         // return the set as an array, sorted alphabetically
-        [returnArray setArray:[[setOfLabels allObjects] sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)]]; 
+        [returnArray setArray:[[setOfLabels allObjects] sortedArrayUsingSelector:@selector(localizedCaseInsensitiveCompare:)]];
         *idx = BDIndexOfItemInArrayWithPrefix(returnArray, hint);
     } else {
         // return the spellchecker's guesses
-        
+
     // Comment by Koch on 6/6/2013 When the above code was written (I think by Adam Maxwell), the Mac probably got its list
     // of completions from the spell checker. But modern versions of NSTextView are smarter and also find completions from
         // the surrounding text, putting these at the top of the list. So instead of asking the spell checker, we just
         // call super to provide the list
-        
-       //  returnArray = (NSMutableArray *)[[NSSpellChecker sharedSpellChecker] completionsForPartialWordRange:charRange inString:s language:nil inSpellDocumentWithTag:[self spellCheckerDocumentTag]];
-        // *idx = BDIndexOfItemInArrayWithPrefix(returnArray, [s substringWithRange:charRange]);
-        
+
         return  [super completionsForPartialWordRange: charRange indexOfSelectedItem: idx];
     }
-	return returnArray;
+    return returnArray;
 }
 
 // for legacy reasons, rangeForUserCompletion gives us an incorrect range for replacement; since it's compatible with searching and I don't feel like changing all the range code, we'll fix it up here
-- (void)fixRange:(NSRange *)range{    
+- (void)fixRange:(NSRange *)range{
     NSString *string = [self string];
-    
+
     NSRange selRange = [self selectedRange];
     NSUInteger minLoc = ( (selRange.location > 100) ? 100 : selRange.location);
     NSRange safeRange = NSMakeRange(selRange.location - minLoc, minLoc);
-    
+
     NSRange braceRange = [string rangeOfString:@"{" options:NSBackwardsSearch | NSLiteralSearch range:safeRange]; // look for an opening brace
     NSRange commaRange = [string rangeOfString:@"," options:NSBackwardsSearch | NSLiteralSearch range:safeRange]; // look for a comma
     NSUInteger maxLoc = [[self string] length];
-    
+
     if(braceRange.location != NSNotFound && braceRange.location < range->location){
         // we found the brace, which must exist if we're here; if not, we won't adjust anything, though
         if(commaRange.location != NSNotFound && commaRange.location > braceRange.location)
@@ -1948,24 +1877,172 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
     }
 }
 
+// Marker used by completionString to delimit cite key from inline metadata.
+// Detecting it lets us strip metadata on every insertion (browsing as well as
+// commit). Cite keys cannot contain spaces, so cutting at the first space
+// yields just the key. Stripping during AppKit's tentative preview-insert is
+// crucial: if the buffer ever holds the metadata tail, the next
+// `rangeForUserCompletion` query (issued on Up/Down) recomputes citeKeyRange
+// across the metadata text, the search string no longer matches any cite key,
+// the completion list comes back empty, and AppKit dismisses the panel.
+#define TS_CITE_METADATA_MARKER @" % "
+
 // finish off the completion, inserting just the cite key
 - (void)insertCompletion:(NSString *)word forPartialWordRange:(NSRange)charRange movement:(NSInteger)movement isFinal:(BOOL)flag {
-    
+
     if(isCompletingTeX || [self refLabelRange].location != NSNotFound)
         [self fixRange:&charRange];
-    
-	if (flag == YES && ([word rangeOfString:COMPLETIONSTRING].location != NSNotFound)) {
-        // this is one of our suggestions, so we need to trim it
-        // strip the comment for this, this assumes cite keys can't have spaces in them
-        
-        // Antti Knowles, antti.knowles@unige.ch, noticed the restriction that no spaces be in cite keys; to fix it, he added the option parameter
-        // to the existing code in the line below. This turned out to be a bad idea, and the fix was removed in 3.87. The Bibtex documentation
-        // says that spaces are not allowed in citation keys.
-        // NSRange firstSpace = [word rangeOfString:@" " options:NSBackwardsSearch];
+
+    if ([word rangeOfString:TS_CITE_METADATA_MARKER].location != NSNotFound) {
+        // Strip the trailing metadata for both tentative (flag == NO) and
+        // committed (flag == YES) insertions. The dropdown still shows the
+        // full "<key> % <author> (<year>) <title>" row because that comes
+        // from completionsForPartialWordRange:, but the buffer only ever
+        // contains the cite key.
         NSRange firstSpace = [word rangeOfString:@" "];
-		word = [word substringToIndex:firstSpace.location];
-	}
+        if (firstSpace.location != NSNotFound)
+            word = [word substringToIndex:firstSpace.location];
+    }
     [super insertCompletion:word forPartialWordRange:charRange movement:movement isFinal:flag];
+}
+
+// Widen AppKit's standard completion panel by ~30% so cite-row metadata fits.
+//
+// AppKit shows the panel ASYNCHRONOUSLY on the next runloop turn after
+// `[super complete:]` returns, so a synchronous window scan misses it.
+// AppKit also re-fits the panel to its content as candidates filter (each
+// keystroke), which would clobber a one-shot resize. We therefore:
+//
+//   1. Snapshot already-visible windows before super.
+//   2. Defer the find/resize to the next runloop via dispatch_async.
+//   3. Search both [NSApp windows] and [editor childWindows] for the panel
+//      (it has been observed in either, depending on macOS release).
+//   4. Re-apply the 30% widening on NSWindowDidResizeNotification until the
+//      panel closes.
+//
+// This is a frame-only mutation: no child-window attachment, no responder
+// swap, so AppKit's completion controller continues to handle arrow keys.
+
+static CGFloat const TSCompletionPanelWidthMultiplier = 1.3;
+
+- (void)complete:(id)sender
+{
+    NSMutableSet *visibleBefore = [NSMutableSet setWithCapacity:32];
+    for (NSWindow *w in [NSApp windows])
+        if ([w isVisible])
+            [visibleBefore addObject:[NSValue valueWithNonretainedObject:w]];
+
+    [super complete:sender];
+
+    __weak TSTextView *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        TSTextView *strongSelf = weakSelf;
+        if (strongSelf == nil)
+            return;
+        [strongSelf widenCompletionPanelComparedToVisibleBefore:visibleBefore];
+    });
+}
+
+- (void)widenCompletionPanelComparedToVisibleBefore:(NSSet *)visibleBefore
+{
+    NSWindow *editor = [self window];
+    if (editor == nil)
+        return;
+
+    NSWindow *panel = [self findCompletionPanelComparedToVisibleBefore:visibleBefore editor:editor];
+    if (panel == nil)
+        return;
+
+    [self applyWidthMultiplierToPanel:panel editor:editor];
+    [self attachWidthEnforcerToPanel:panel];
+}
+
+- (NSWindow *)findCompletionPanelComparedToVisibleBefore:(NSSet *)visibleBefore editor:(NSWindow *)editor
+{
+    NSWindow *bestApp = nil;
+    for (NSWindow *w in [NSApp windows]) {
+        if (![w isVisible]) continue;
+        if (w == editor) continue;
+        if ([visibleBefore containsObject:[NSValue valueWithNonretainedObject:w]])
+            continue;
+        if (bestApp == nil || NSWidth([w frame]) < NSWidth([bestApp frame]))
+            bestApp = w;
+    }
+    if (bestApp != nil)
+        return bestApp;
+
+    NSWindow *bestChild = nil;
+    for (NSWindow *w in [editor childWindows]) {
+        if (![w isVisible]) continue;
+        if (w == editor) continue;
+        if ([visibleBefore containsObject:[NSValue valueWithNonretainedObject:w]])
+            continue;
+        if (bestChild == nil || NSWidth([w frame]) < NSWidth([bestChild frame]))
+            bestChild = w;
+    }
+    return bestChild;
+}
+
+- (void)applyWidthMultiplierToPanel:(NSWindow *)panel editor:(NSWindow *)editor
+{
+    NSRect frame = [panel frame];
+    CGFloat newWidth = ceil(frame.size.width * TSCompletionPanelWidthMultiplier);
+
+    NSScreen *screen = [panel screen] ?: [editor screen];
+    if (screen != nil) {
+        CGFloat maxWidth = NSWidth([screen visibleFrame]) - 20.0;
+        if (newWidth > maxWidth)
+            newWidth = maxWidth;
+    }
+
+    if (newWidth > frame.size.width + 0.5) {
+        frame.size.width = newWidth;
+        [panel setFrame:frame display:YES];
+    }
+}
+
+// AppKit re-fits the panel as the user types or candidates change. Watch for
+// resizes and re-apply our 30% multiplier — but only when AppKit shrinks the
+// panel below our target, and only while the panel is still visible.
+- (void)attachWidthEnforcerToPanel:(NSWindow *)panel
+{
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    __weak TSTextView *weakSelf = self;
+    __weak NSWindow *weakPanel = panel;
+
+    __block id resizeToken = nil;
+    __block id closeToken = nil;
+
+    void (^cleanup)(void) = ^{
+        if (resizeToken != nil) {
+            [nc removeObserver:resizeToken];
+            resizeToken = nil;
+        }
+        if (closeToken != nil) {
+            [nc removeObserver:closeToken];
+            closeToken = nil;
+        }
+    };
+
+    resizeToken = [nc addObserverForName:NSWindowDidResizeNotification
+                                  object:panel
+                                   queue:[NSOperationQueue mainQueue]
+                              usingBlock:^(NSNotification *note) {
+        TSTextView *strongSelf = weakSelf;
+        NSWindow *strongPanel = weakPanel;
+        if (strongSelf == nil || strongPanel == nil || ![strongPanel isVisible]) {
+            cleanup();
+            return;
+        }
+        [strongSelf applyWidthMultiplierToPanel:strongPanel editor:[strongSelf window]];
+    }];
+
+    closeToken = [nc addObserverForName:NSWindowWillCloseNotification
+                                 object:panel
+                                  queue:[NSOperationQueue mainQueue]
+                              usingBlock:^(NSNotification *note) {
+        cleanup();
+    }];
 }
 
 #pragma mark -
@@ -1992,8 +2069,8 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 	NSRange replaceRange;
 	replaceRange.location = replaceLocationLocal;
 	replaceRange.length = selectedLocation-replaceLocationLocal;
-	
-	
+
+
 	[self replaceCharactersInRange:replaceRange withString:	newString];
 	// register undo
 	if (self.document)
@@ -2013,7 +2090,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 		to = from + [newString length];
 		[self.document fixColor:from :to];
 		[self.document setupTags];
-     
+
 	}
 	// currentStringNew = [newString retain];
 	wasCompleted = YES;
@@ -2039,10 +2116,10 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 // TSTextView method. Only textView1 is allowed to trigger a recoloring.
 
 - (id) viewDidChangeEffectiveAppearance {
-    
+
     if (self != self.document.textView1)
         return NULL;
-    
+
 
 #ifdef MOJAVEORHIGHER
     if ((atLeastMojave) && (self.effectiveAppearance.name == NSAppearanceNameDarkAqua))
@@ -2056,11 +2133,11 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
         [self.document changeColors: NO];
         [[TSLaTeXPanelController sharedInstance] setIconTemplate:NO];
     }
-    
+
     return NULL;
-    
+
 }
-    
+
 
 // Command Completion!!
 
@@ -2089,15 +2166,15 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 // (a string which starts and ends with line feeds).
 // so the code can be reused in other applications???
 
-/* OLD VERSION */ 
+/* OLD VERSION */
 
 - (void)keyDown:(NSEvent *)theEvent
 {
-    
+
     // The following is from Antti Knowles, antti.knowles@unige.ch
     // If the user uses synctex from pdf to text, the selection is yellow. If additional selectios are made from the keyboard,
     // they are also in yellow until the cursor converts them back to selection color. This code fixes the problem
-    
+
     if ([_document textSelectionYellow]) {
         [_document setTextSelectionYellow: NO];
         NSMutableDictionary* mySelectedTextAttributes = [NSMutableDictionary dictionaryWithDictionary: [[_document textView] selectedTextAttributes]];
@@ -2114,7 +2191,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 	// FIXME: Using static variables like this is *EVIL*
 	// It will simply not work correctly when using more than one window/view (which we frequently do)!
 	// TODO: Convert all of these static stack variables to member variables.
-	
+
 	// static BOOL wasCompleted = NO; // was completed on last keyDown
 	// static BOOL latexSpecial = NO; // was last time LaTeX Special?  \begin{...}
 	// static NSString *originalString = nil; // string before completion, starts at replaceLocation
@@ -2138,10 +2215,10 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
     NSString *selectedString, *aString, *replacementString;
     BOOL boolResult;
 	unichar c;
-    
+
     // if character is $, {, (, [ and control is down and there is a selection, then enclose the selection in appropriate brackets
     // and return
-    
+
     if ((self.selectedRange.length > 2) && editorCanAddBrackets)
     { if ([[theEvent characters] isEqualToString: @"["])
         {
@@ -2192,7 +2269,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
             return;
         }
     }
-    
+
 	if ([[theEvent characters] isEqualToString: g_commandCompletionChar] &&
 		( ! [[SUD stringForKey: CommandCompletionAlternateMarkShortcutKey] isEqualToString:@"NO"] ) &&
 		(([theEvent modifierFlags] & NSAlternateKeyMask) != 0))
@@ -2200,7 +2277,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
  				[self.document doNextBullet:self];
 				return;
 			}
-		
+
 	else if ([[theEvent characters] isEqualToString: g_commandCompletionChar] &&
 		( ! [[SUD stringForKey: CommandCompletionAlternateMarkShortcutKey] isEqualToString:@"NO"] ) &&
 		(([theEvent modifierFlags] & NSControlKeyMask) != 0))
@@ -2233,25 +2310,25 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 				latexSpecial = YES;
 				latexString = [textString substringWithRange:
 							NSMakeRange(foundRange.location, selectedLocation-foundRange.location)];
-				
+
 				// Alvise Trevisan; preserve tabs code (begin addition)
 				NSInteger indentSpace;
 				NSInteger indentTab = [self.document textViewCountTabs:self andSpaces: &indentSpace];
 				NSInteger n;
-				
+
 				for (n = 0; n < indentTab; ++ n)
 					[indentString appendString:@"\t"];
 				for (n = 0; n < indentSpace; ++ n)
 					[indentString appendString:@" "];
 				// Alvise Trevisan; preserve tabs code (end addition)
-				
+
 				// if (wasCompleted)
 					//[self.currentString retain]; // extend life time
 			}
 		}
 		else
             latexSpecial = NO;
- 
+
 		// if it was completed last time, revert to the uncompleted stage
 		if (wasCompleted)
 		{
@@ -2297,9 +2374,9 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 			}
 			// [self.currentString release];
 		}
-        
-        
-  
+
+
+
 
 		if (!wasCompleted && !latexSpecial) {
 			// determine the word to complete--search for word boundary
@@ -2404,7 +2481,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 					// **** 2011/03/05 preserve proper indent (HS) **** Copied from Alvise Trevisan; preserve tabs code
 					// search for #INS#
 					insRange = [newString rangeOfString:@"#INS#" options:0];
-					// Start Changed by (HS) - find second #INS#, remove if it's there and 
+					// Start Changed by (HS) - find second #INS#, remove if it's there and
 					// set selection length. NOTE: selectlength inited to 0 so ok if not found.
 					//if (insRange.location != NSNotFound)
 					//	[newString replaceCharactersInRange:insRange withString:@""];
@@ -2466,7 +2543,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 				to = from + [newString length];
 				[self.document fixColor:from :to];
     			[self.document setupTags];
-                
+
 			}
 			self.currentString = newString;
 			wasCompleted = YES;
@@ -2502,22 +2579,22 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 		// [self.currentString release];
 		self.originalString = self.currentString = nil;
 		wasCompleted = NO;
-		// return; //Herb Suggested Error Here		
+		// return; //Herb Suggested Error Here
 	}
 
 	[super keyDown: theEvent];
 }
 
 
-/* NEW VERSION 
+/* NEW VERSION
 - (void)keyDown:(NSEvent *)theEvent
 {
 	// FIXME: Using static variables like this is *EVIL*
 	// It will simply not work correctly when using more than one window/view (which we frequently do)!
 	// TODO: Convert all of these static stack variables to member variables.
-	
-	
-	
+
+
+
 	static BOOL wasCompleted = NO; // was completed on last keyDown
 	static BOOL latexSpecial = NO; // was last time LaTeX Special?  \begin{...}
 	static NSString *originalString = nil; // string before completion, starts at replaceLocation
@@ -2532,11 +2609,11 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 	NSRange foundRange, searchRange, spaceRange, insRange, replaceRange;
 	NSCharacterSet *charSet;
 	unichar c;
-	
+
 	if ([[theEvent characters] isEqualToString: g_commandCompletionChar] &&
 		(([theEvent modifierFlags] & NSAlternateKeyMask) == 0) &&
 		![self hasMarkedText] && g_commandCompletionList)
-		
+
 		//  if ([[theEvent characters] isEqualToString: g_commandCompletionChar] && (![self hasMarkedText]) && g_commandCompletionList)
 	{
 		textString = [self string]; // this will change during operations (such as undo)
@@ -2563,7 +2640,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 		}
 		else
 			latexSpecial = NO;
-		
+
 		// if it was completed last time, revert to the uncompleted stage
 		if (wasCompleted)
 		{
@@ -2608,7 +2685,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 			}
 			[currentString release];
 		}
-		
+
 		if (!wasCompleted && !latexSpecial) {
 			// determine the word to complete--search for word boundary
 			charSet = [NSCharacterSet characterSetWithCharactersInString:
@@ -2633,13 +2710,13 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 			[originalString retain];
 			completionListLocation = 0;
 		}
-		
+
 		// try to find a completion candidate
 		if (!latexSpecial) { // ordinary case -- find from the list
 			searchRange.location = 0;
-			searchRange.length = [g_commandCompletionList length];		
+			searchRange.length = [g_commandCompletionList length];
 			NSMutableArray *completionList = [NSMutableArray array];
-			
+
 			while (YES) { // look for a candidate which is not equal to originalString
 				//				if ([theEvent modifierFlags] && wasCompleted) {
 				//					// backward
@@ -2650,11 +2727,11 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 				//					searchRange.location = completionListLocation;
 				//					searchRange.length = [g_commandCompletionList length] - completionListLocation;
 				//				}
-				
+
 				// search the string in the completion list
 				foundRange = [g_commandCompletionList rangeOfString: [@"\n" stringByAppendingString: originalString]
 															options: 0  range: searchRange];
-				
+
 				if (foundRange.location == NSNotFound) { // a completion candidate was not found
 					break;
 				} else { // found a completion candidate-- create replacement string
@@ -2684,7 +2761,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 					[completionList addObject:newString];
 				}
 				searchRange.location = foundRange.location + foundRange.length;
-				searchRange.length = [g_commandCompletionList length] - searchRange.location;		
+				searchRange.length = [g_commandCompletionList length] - searchRange.location;
 			}
 			unsigned rectCount = 0;
 			NSRange myRange= NSMakeRange(replaceLocation, selectedLocation-replaceLocation);
@@ -2692,16 +2769,16 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 			if(rectCount != 0){
 				NSRect rectangle = selectedPositionRect[0];
 				NSPoint pointLoc = {rectangle.origin.x + [[NSFont systemFontOfSize:[NSFont smallSystemFontSize]] boundingRectForFont].size.width * (selectedLocation - replaceLocation - 1), rectangle.origin.y + [[self font] boundingRectForFont].size.height};
-				
+
 				pointLoc = [self convertPoint:pointLoc fromView:nil];
-				
-				NSEvent* myEvent = [NSEvent keyEventWithType:[theEvent type] 
+
+				NSEvent* myEvent = [NSEvent keyEventWithType:[theEvent type]
 													location:pointLoc modifierFlags:[theEvent modifierFlags] timestamp:[theEvent timestamp] windowNumber:[theEvent windowNumber]
-													 context:[theEvent context] characters:[theEvent characters] charactersIgnoringModifiers:[theEvent charactersIgnoringModifiers] 
+													 context:[theEvent context] characters:[theEvent characters] charactersIgnoringModifiers:[theEvent charactersIgnoringModifiers]
 												   isARepeat:[theEvent isARepeat] keyCode:[theEvent keyCode]];
-				
+
 				NSMenu *theMenu = [[[NSMenu alloc] initWithTitle:@"Contextual Menu"] autorelease];
-				
+
 				NSArray *keys = [NSArray arrayWithObjects:@"sloc", @"rloc", @"originalString", nil];
 				NSArray *objects = [NSArray arrayWithObjects:[NSNumber numberWithInt:selectedLocation], [NSNumber numberWithInt:replaceLocation], originalString, nil];
 				NSDictionary *dictionary = [NSDictionary dictionaryWithObjects:objects forKeys:keys];
@@ -2711,17 +2788,17 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 					NSMenuItem *item = [theMenu insertItemWithTitle:[completionList objectAtIndex:i] action:@selector(autoComplete:) keyEquivalent:@"" atIndex:0];
 					[item setRepresentedObject:dictionary];
 				}
-				
+
 				[NSMenu popUpContextMenu:theMenu withEvent:myEvent forView:self withFont:[NSFont systemFontOfSize:[NSFont smallSystemFontSize]]];
-				
+
 				//			[[NSHelpManager sharedHelpManager] setContextHelp:@"sss" forObject:self]; // r20s2
-				
-				
-				
+
+
+
 				//			NSHelpManager* help = [[[NSHelpManager alloc] view:self stringForToolTip:@"SSSS" point:pointLoc userData:nil] autorelease];
 				//			[help showContextHelpForObject:[self textContainer] locationHint:pointLoc];
 			}
-			
+
 		} else { // LaTeX Special -- just add \end and copy of {...}
 			foundCandidate = YES;
 			if (!wasCompleted) {
@@ -2743,7 +2820,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 		originalString = currentString = nil;
 		wasCompleted = NO;
 		return;
-	} 
+	}
 	[super keyDown: theEvent];
 }
 
@@ -2796,7 +2873,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 
 	if ([anItem action] == @selector(registerForCommandCompletion:))
 		return (g_canRegisterCommandCompletion && ([self selectedRange].length > 0));
-    
+
 	return [super validateMenuItem: anItem];
 }
 
@@ -2808,10 +2885,10 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 
     NSRange selectedRange = [self selectedRange];
     id representedObject = [aMarker representedObject];
-    
+
 	if ([representedObject isKindOfClass: [NSString class]] && [(NSString*)representedObject isEqualToString: @"NSTailIndentRulerMarkerTag"])
         [self selectAll: self];
-    
+
     [super rulerView: aRulerView didMoveMarker: aMarker];
     [self setSelectedRange: selectedRange];
 }
@@ -2826,7 +2903,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
         menuPoint = [NSEvent mouseLocation];
         // menuPoint = [theEvent locationInWindow];
         // NSLog(@"The new values are %f and %f", menuPoint.x, menuPoint.y);
-        
+
 		[theMenu insertItemWithTitle:NSLocalizedString(@"Sync", @"Sync") action:@selector(doSyncForMenu:) keyEquivalent:@"" atIndex:0];
         [theMenu insertItemWithTitle:NSLocalizedString(@"Split Window", @"Split Window") action:@selector(splitWindow:) keyEquivalent:@"" atIndex:1];
 		[theMenu insertItem:[NSMenuItem separatorItem] atIndex:2];
@@ -2843,7 +2920,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 {
     NSView  *myContentView;
     CGFloat myWidth;
-    
+
     myContentView = [[self enclosingScrollView] contentView];
     myWidth = myContentView.bounds.size.width;
     return myWidth;
@@ -2861,7 +2938,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
 	visibleRect = [[[self enclosingScrollView] contentView] documentVisibleRect];
 	visibleRange = [layoutManager glyphRangeForBoundingRect:visibleRect inTextContainer:[self textContainer]];
 	visibleRange = [layoutManager characterRangeForGlyphRange:visibleRange actualGlyphRange:nil];
-	
+
 	return visibleRange;
 }
 
@@ -2872,11 +2949,11 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
     NSUInteger endCount;
     NSRange    searchRange, selectedRange, selectedCommentRange;
     NSString   *searchString, *commentStart, *commentEnd;
-    
-    
+
+
     text = [self string];
     textlength = [text length];
-    
+
     startCount = 0; endCount = 0;
     searchRange.location = locationStart; searchRange.length = locationEnd - locationStart;
     searchString = @"<";
@@ -2884,7 +2961,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
  //   NSLog(searchString);
     commentStart = @"<!--";
     commentEnd = @"-->";
-  
+
     do {
         selectedRange = [text rangeOfString: searchString options:NSLiteralSearch range: searchRange];
         selectedCommentRange = [text rangeOfString: commentStart options:NSLiteralSearch range: searchRange];
@@ -2910,14 +2987,14 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
         }
     }
     while ( selectedRange.location != NSNotFound);
-        
-        
+
+
     searchRange.location = locationStart; searchRange.length = locationEnd - locationStart;
     searchString = @"</";
     searchString = [[searchString stringByAppendingString: word] stringByAppendingString: @">"];
-    
+
  //   NSLog(searchString);
- 
+
  //   selectedRange = [text rangeOfString: searchString options:NSLiteralSearch range: searchRange];
 
     do {
@@ -2945,14 +3022,14 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
         }
     }
     while ( selectedRange.location != NSNotFound);
-    
+
  //   NSLog(@"Start = %d  End = %d", startCount, endCount);
-    
+
     if (startCount ==  (endCount + 1))
         return TRUE;
     else
         return FALSE;
-    
+
 }
 
 
@@ -2961,7 +3038,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
     /* For a moment, we ignore comments. Here is an outline of the code. Invent a variable named "textlocation". Initially set it to the
      position of the cursor. Search backward for </aword> and for <bword, where aword and bword must have at least one character. If the first such element, searching backward, is <bword, then enter </bword> at the cursor location and quit. Otherwise, search backward for <aword. Set
      textlocation to the character just before < and continue the process. If the process reaches the start of the text, do nothing. */
-    
+
     NSUInteger textlocation, cursorlocation, textlength;
     NSRange cursorRange, selectedRange, searchRange, selectedCommentEndRange, selectedCommentStartRange;
     BOOL  done, stillletter;
@@ -2976,23 +3053,23 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
     commentStart = @"<!--";
     commentEnd = @"-->";
     tagOpens = TRUE;
-    
+
  //   NSLog(@"here");
     letterset = [NSCharacterSet letterCharacterSet];
     text = [self string];
     textlength = [text length];
     cursorRange = [self selectedRange];
     cursorlocation = cursorRange.location;
-    
+
     if ((cursorlocation < 2) || (cursorlocation >= textlength))
         return;
     textlocation = cursorlocation - 1;
-    
+
     // we will only search source before cursor location
     done = FALSE;
     searchRange.location = 0;
     searchRange.length = textlocation;
-    
+
     selectedCommentStartRange = [text rangeOfString: commentStart options:NSBackwardsSearch range: searchRange];
     selectedCommentEndRange = [text rangeOfString: commentEnd options:NSBackwardsSearch range: searchRange];
     if ((selectedCommentStartRange.location != NSNotFound) && (selectedCommentEndRange.location != NSNotFound)
@@ -3002,7 +3079,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
     if ((selectedCommentStartRange.location != NSNotFound) && (selectedCommentEndRange.location == NSNotFound))
         // again a click in a comment
         return;
-    
+
     // at this point, we know that the click was not in a comment, so we do serious work
     // we look for start tags like <section and end tags like </section>, avoiding comments
     // if the first element we find is <section, then it closes the tag and we are done
@@ -3011,11 +3088,11 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
     // So we really have a two state machine. We can be looking for both kinds of tags, or we can be
     // trying to match a close tag. Call these states 1 and 2. If we first come to a comment, then we
     // skip it without changing the state.
-    
+
     state = 1;
-    
+
     do {
-        
+
         selectedRange = [text rangeOfString: @"<" options:NSBackwardsSearch range: searchRange];
         if (selectedRange.location == NSNotFound)
             return;
@@ -3037,7 +3114,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
                 else
                     return;
             }
-                
+
         else
          // now we have a true element <, so either we are in state 1 and this is an opening and we are done,
         // or else we are in state 1 and this is a closing and we switch to state 2, while saving the opening
@@ -3063,7 +3140,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
                     tagOpens = TRUE;
                     oppositeTag = @"</"; pureword = @""; foundTag = @"<";
                 }
-            
+
            do {
                 c = [text characterAtIndex:myIndex];
                 charString = [NSString stringWithFormat:@"%c" , c];
@@ -3080,7 +3157,7 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
             while (stillletter);
             if (tagOpens)
                 oppositeTag = [oppositeTag stringByAppendingString:@">"];
-            
+
            newstate = state;
             if ((state == 1) && ( tagOpens))
             {
@@ -3097,22 +3174,20 @@ static BOOL launchBibDeskAndOpenURLs(NSArray *fileURLs)
             {
                 newstate = 1;
             }
-            
+
             state = newstate;
             searchRange.length = selectedRange.location - 1;
         }
-        
+
     } while (searchRange.length > 3);
-        
-  
-    
+
+
+
  //   if (! [self countTest: pureword])
  //       return;
-    
-     
-    
+
+
+
 }
 
 @end
-
-

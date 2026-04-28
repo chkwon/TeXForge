@@ -68,7 +68,7 @@
                     }
                 }
             }
-            
+
             if (isRootFileWindow) {
 				if (obj == self)
 					return NO;
@@ -92,7 +92,7 @@
                     }
 				} else if (task == RootForTexing) {
 					// FIXME: The following code block exists twice in this function
-  
+
 					theEngine = useTempEngine ? tempEngine : whichEngine;
 					if (whichEngine >= UserEngine) {
 						[obj doUser:whichEngine];
@@ -111,7 +111,7 @@
 					}
 				} else if (task == RootForOpening) {
 					/* This section was moved lower down for version 2.40
-					 
+
 					// added by Terada (from this line)
 					NSRect activeWindowFrame = [[obj textWindow] frame];
 					NSRect newFrame;
@@ -124,7 +124,7 @@
 					{
 						newFrame = NSMakeRect(NSMinX(activeWindowFrame) + 20, NSMinY(activeWindowFrame) + 20, NSWidth(activeWindowFrame), NSHeight(activeWindowFrame));
 					}
-					
+
 					[[obj textWindow] setFrame:newFrame display:YES];
 					// added by Terada (until this line)
 					*/
@@ -139,13 +139,13 @@
 	// document not found, open document and typeset
 	dc = [NSDocumentController sharedDocumentController];
 	//	obj = [dc openDocumentWithContentsOfURL:[NSURL fileURLWithPath: nameString] display:YES error:NULL];
-	obj = [[NSFileManager defaultManager] fileExistsAtPath:nameString] ? [dc openDocumentWithContentsOfURL:[NSURL fileURLWithPath: nameString] 
+	obj = [[NSFileManager defaultManager] fileExistsAtPath:nameString] ? [dc openDocumentWithContentsOfURL:[NSURL fileURLWithPath: nameString]
                                                                         display:YES error:NULL] : nil; // modified by Terada
 	if (obj) {
 		if (obj == self)
 			return NO;
 		if (task == RootForPrinting) {
-            
+
             if([SUD boolForKey:MiniaturizeRootFileKey])
                 [[obj textWindow] performSelector:@selector(miniaturize:) withObject:self afterDelay:0];
 			[obj printDocument:nil];
@@ -191,7 +191,7 @@
 				NSRect newFrame = NSMakeRect(minX, minY, NSWidth(activeWindowFrame), NSHeight(activeWindowFrame));
 				[[obj textWindow] setFrame:newFrame display:YES];
 			}
-            
+
             if([SUD boolForKey:MiniaturizeRootFileKey])
                 [[obj textWindow] performSelector:@selector(miniaturize:) withObject:self afterDelay:0];
             else
@@ -306,7 +306,7 @@
 			}
 		}
 	}
-    
+
     if(task == RootForOpening && ![SUD boolForKey:AutoOpenRootFileKey])
         return NO;
 
@@ -328,7 +328,7 @@
 {
 	NSString			*projectPath, *nameString;
     NSStringEncoding    theEncoding;
-    
+
   	projectPath = [[[[self fileURL] path] stringByDeletingPathExtension] stringByAppendingPathExtension:@"texshop"];
 	if (![[NSFileManager defaultManager] fileExistsAtPath: projectPath])
 		return NO;
@@ -337,7 +337,7 @@
 	projectRoot = [projectRoot stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 	if ([projectRoot length] == 0)
 		return NO;
-    
+
 	if ([projectRoot isAbsolutePath]) {
 		nameString = [NSString stringWithString:projectRoot];
 	} else {
@@ -348,6 +348,121 @@
 	}
 
 	return [self checkRootFile:nameString forTask:task];
+}
+
+- (NSURL *)bibliographyRootFileURLForSource:(NSString *)theSource
+{
+    NSString *home, *jobname;
+    NSRange myRange, theRange, sourcedocRange, newSourceDocRange;
+    NSString *testString, *sourcedocString;
+    NSUInteger length;
+    BOOL done;
+    NSInteger linesTested, offset;
+    NSUInteger start, end, irrelevant;
+    NSStringEncoding theEncoding;
+
+    if ([self fileURL] == nil)
+        return nil;
+
+    home = [[[self fileURL] path] stringByDeletingLastPathComponent];
+    jobname = [[[[self fileURL] path] lastPathComponent] stringByDeletingPathExtension];
+
+    length = [theSource length];
+    done = NO;
+    linesTested = 0;
+    myRange.location = 0;
+    myRange.length = 1;
+    sourcedocString = nil;
+
+    while ((myRange.location < length) && (!done) && (linesTested < 20)) {
+        [theSource getLineStart:&start end:&end contentsEnd:&irrelevant forRange:myRange];
+        myRange.location = end;
+        myRange.length = 1;
+        linesTested++;
+
+        theRange.location = start;
+        theRange.length = end - start;
+        testString = [theSource substringWithRange:theRange];
+        sourcedocRange = [testString rangeOfString:@"%!TEX root ="];
+        offset = 12;
+
+        if (sourcedocRange.location == NSNotFound) {
+            sourcedocRange = [testString rangeOfString:@"% !TEX root ="];
+            offset = 13;
+        }
+
+        if (sourcedocRange.location != NSNotFound) {
+            newSourceDocRange.location = sourcedocRange.location + offset;
+            newSourceDocRange.length = [testString length] - newSourceDocRange.location;
+            if (newSourceDocRange.length > 0) {
+                sourcedocString = [[testString substringWithRange:newSourceDocRange]
+                                   stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                if ([sourcedocString length] > 0)
+                    done = YES;
+            }
+        }
+    }
+
+    if (done) {
+        NSString *resolvedPath = [self decodeFile:sourcedocString homePath:home job:jobname];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:resolvedPath])
+            return [NSURL fileURLWithPath:resolvedPath];
+    }
+
+    NSString *projectPath = [[[[self fileURL] path] stringByDeletingPathExtension] stringByAppendingPathExtension:@"texshop"];
+    if (![[NSFileManager defaultManager] fileExistsAtPath:projectPath])
+        return nil;
+
+    NSString *projectRoot = [NSString stringWithContentsOfFile:projectPath usedEncoding:&theEncoding error:NULL];
+    projectRoot = [projectRoot stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([projectRoot length] == 0)
+        return nil;
+
+    NSString *rootPath = nil;
+    if ([projectRoot isAbsolutePath]) {
+        rootPath = projectRoot;
+    } else {
+        rootPath = [[[self fileURL] path] stringByDeletingLastPathComponent];
+        rootPath = [[rootPath stringByAppendingPathComponent:projectRoot] stringByStandardizingPath];
+    }
+
+    if (![[NSFileManager defaultManager] fileExistsAtPath:rootPath])
+        return nil;
+
+    return [NSURL fileURLWithPath:rootPath];
+}
+
+- (NSURL *)bibliographyEffectiveSourceURL
+{
+    NSString *currentSource = [self.textStorage string] ?: @"";
+    NSURL *rootURL = [self bibliographyRootFileURLForSource:currentSource];
+
+    if (rootURL != nil)
+        return rootURL;
+
+    return [self fileURL];
+}
+
+- (NSString *)bibliographyEffectiveSourceString
+{
+    NSURL *effectiveURL = [self bibliographyEffectiveSourceURL];
+
+    if (effectiveURL == nil)
+        return [self.textStorage string] ?: @"";
+
+    if ([[effectiveURL path] isEqualToString:[[self fileURL] path]])
+        return [self.textStorage string] ?: @"";
+
+    id openDocument = [[NSDocumentController sharedDocumentController] documentForURL:effectiveURL];
+    if ([openDocument isKindOfClass:[TSDocument class]])
+        return [[(TSDocument *)openDocument textStorage] string] ?: @"";
+
+    NSStringEncoding encoding = NSUTF8StringEncoding;
+    NSString *source = [NSString stringWithContentsOfFile:[effectiveURL path] usedEncoding:&encoding error:nil];
+    if (source == nil)
+        source = [NSString stringWithContentsOfFile:[effectiveURL path] encoding:NSUTF8StringEncoding error:nil];
+
+    return source ?: @"";
 }
 
 /* Removed by Ulrich Bauer patch */
@@ -385,14 +500,14 @@
 	NSEnumerator *en;
 	id obj;
 	NSUInteger numFiles,i;
-	
+
 	if (![SUD boolForKey:SaveRelatedKey])
 		return;
 
 	// load home path and jobname
 	home = [[[self fileURL] path] stringByDeletingLastPathComponent];
 	jobname = [[[[self fileURL] path] lastPathComponent] stringByDeletingPathExtension];
-	
+
 	// create list of linked files from \input commands
 	aRange = NSMakeRange(0, [theSource length]);
 	slist = [[NSMutableArray alloc] init];
@@ -413,7 +528,7 @@
 		aRange.location += 6;
 		aRange.length = [theSource length] - aRange.location;
 	}
-	
+
 	numFiles = [slist count];
 
 	if (numFiles==0) {
@@ -441,7 +556,7 @@
 	// release file list
 //	[slist release];
 }
- 
+
 // End Bauer
 
 // added by John A. Nairn
@@ -467,7 +582,7 @@
 		if (firstChar != BACKSLASH)
 			return nil;
 	}
-	
+
 	// check if next character is { or ' '
 	firstChar = [fileLine characterAtIndex:i];
 
@@ -531,11 +646,11 @@
 			relFile = [relFile substringFromIndex:3];
 		}
 		saveName = [NSString stringWithFormat:@"%@/%@",home,relFile];
-        
+
  	}
 	else
 		saveName = [NSString stringWithFormat:@"%@/%@",home,relFile];
-    
+
     // NSString *aName = [saveName stringByStandardizingPath];
     NSString *aName = [saveName stringByResolvingSymlinksInPath];
     saveName = aName;

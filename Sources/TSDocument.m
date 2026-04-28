@@ -53,7 +53,7 @@
 #import "TSEncodingSupport.h"
 #import "TSMacroMenuController.h"
 #import "TSDocumentController.h"
-#import "TSLayoutManager.h" // added by Terada 
+#import "TSLayoutManager.h" // added by Terada
 #import "TSToolbar.h"
 #import "NSString-Extras.h"  // Terada
 #import "NSText-Extras.h"  // Terada
@@ -73,6 +73,935 @@
 - (void)setLogWindowFontFromPreferences:(NSNotification *)notification;
 - (void)setSourceBackgroundColorFromPreferences:(NSNotification *)notification;
 - (void)fixPDFPageNumberBox:(NSNotification *)notification;
+@property (retain) id bibliographyCompletionCache;
+@end
+
+static BOOL
+TSBibliographyStringsEqual(NSString *left, NSString *right)
+{
+    return (left == right) || [left isEqualToString:right];
+}
+
+static NSString *
+TSBibliographyTrimmedString(NSString *string)
+{
+    if (string == nil)
+        return @"";
+    return [string stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+static NSString *
+TSBibliographyCollapsedWhitespaceString(NSString *string)
+{
+    if ([string length] == 0)
+        return @"";
+
+    NSMutableString *collapsed = [NSMutableString stringWithCapacity:[string length]];
+    BOOL previousWasWhitespace = NO;
+    NSUInteger i, length = [string length];
+
+    for (i = 0; i < length; i++) {
+        unichar c = [string characterAtIndex:i];
+        BOOL isWhitespace = [[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:c];
+        if (isWhitespace) {
+            if (!previousWasWhitespace)
+                [collapsed appendString:@" "];
+        } else {
+            [collapsed appendFormat:@"%C", c];
+        }
+        previousWasWhitespace = isWhitespace;
+    }
+
+    return TSBibliographyTrimmedString(collapsed);
+}
+
+// Sanitize metadata bound for an AppKit completion string. Commas, '{', and
+// '}' are toxic to citeKeyRange's brace/comma scanning when AppKit tentatively
+// inserts the formatted completion into the buffer — the next rangeForUserCompletion
+// query would mis-detect a multi-cite comma or a closing brace and the panel
+// would dismiss on the first arrow-key press.
+static NSString *
+TSBibliographyCompletionSafeMetadata(NSString *string)
+{
+    if ([string length] == 0)
+        return @"";
+
+    NSMutableString *out = [NSMutableString stringWithCapacity:[string length]];
+    NSUInteger i, length = [string length];
+    BOOL previousWasSpace = NO;
+
+    for (i = 0; i < length; i++) {
+        unichar c = [string characterAtIndex:i];
+        if (c == ',' || c == '{' || c == '}' || c == '\n' || c == '\r' || c == '\t') {
+            if (!previousWasSpace)
+                [out appendString:@" "];
+            previousWasSpace = YES;
+        } else {
+            [out appendFormat:@"%C", c];
+            previousWasSpace = (c == ' ');
+        }
+    }
+
+    return TSBibliographyTrimmedString(out);
+}
+
+static BOOL
+TSBibliographyCharacterIsEscaped(NSString *string, NSUInteger index)
+{
+    NSInteger previous = (NSInteger)index - 1;
+    NSUInteger backslashCount = 0;
+
+    while (previous >= 0 && [string characterAtIndex:(NSUInteger)previous] == '\\') {
+        backslashCount++;
+        previous--;
+    }
+
+    return (backslashCount % 2) == 1;
+}
+
+static NSString *
+TSBibliographyStripTeXComments(NSString *string)
+{
+    NSMutableString *result = [NSMutableString stringWithCapacity:[string length]];
+    BOOL insideComment = NO;
+    NSUInteger i, length = [string length];
+
+    for (i = 0; i < length; i++) {
+        unichar c = [string characterAtIndex:i];
+
+        if (insideComment) {
+            if (c == '\n' || c == '\r') {
+                insideComment = NO;
+                [result appendFormat:@"%C", c];
+            }
+            continue;
+        }
+
+        if (c == '%' && !TSBibliographyCharacterIsEscaped(string, i)) {
+            insideComment = YES;
+            continue;
+        }
+
+        [result appendFormat:@"%C", c];
+    }
+
+    return result;
+}
+
+static NSString *
+TSBibliographyResolvedPath(NSString *rawPath, NSString *baseDirectory)
+{
+    NSString *path = TSBibliographyTrimmedString(rawPath);
+
+    if ([path length] == 0)
+        return nil;
+
+    if (([path hasPrefix:@"\""] && [path hasSuffix:@"\""]) ||
+        ([path hasPrefix:@"'"] && [path hasSuffix:@"'"])) {
+        path = [path substringWithRange:NSMakeRange(1, [path length] - 2)];
+    }
+
+    if ([path hasPrefix:@"file:"]) {
+        NSURL *fileURL = [NSURL URLWithString:path];
+        if ([fileURL isFileURL])
+            path = [fileURL path];
+    }
+
+    if ([path rangeOfString:@"://"].location != NSNotFound)
+        return nil;
+
+    path = [path stringByExpandingTildeInPath];
+    if ([[path pathExtension] length] == 0)
+        path = [path stringByAppendingPathExtension:@"bib"];
+
+    if ([path isAbsolutePath])
+        return [path stringByStandardizingPath];
+
+    if ([baseDirectory length] == 0)
+        return nil;
+
+    return [[baseDirectory stringByAppendingPathComponent:path] stringByStandardizingPath];
+}
+
+static NSArray *
+TSBibliographyFilePathsFromSourceString(NSString *sourceString, NSString *baseDirectory)
+{
+    NSString *cleanSource = TSBibliographyStripTeXComments(sourceString ?: @"");
+    NSMutableArray *paths = [NSMutableArray arrayWithCapacity:4];
+    NSMutableSet *seenPaths = [NSMutableSet setWithCapacity:4];
+    NSArray *patterns = [NSArray arrayWithObjects:
+                         [NSDictionary dictionaryWithObjectsAndKeys:
+                          @"\\\\bibliography\\s*\\{([^}]*)\\}", @"pattern",
+                          [NSNumber numberWithBool:YES], @"split",
+                          nil],
+                         [NSDictionary dictionaryWithObjectsAndKeys:
+                          @"\\\\addbibresource(?:\\s*\\[[^\\]]*\\])?\\s*\\{([^}]*)\\}", @"pattern",
+                          [NSNumber numberWithBool:NO], @"split",
+                          nil],
+                         nil];
+
+    for (NSDictionary *patternInfo in patterns) {
+        NSError *error = nil;
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:[patternInfo objectForKey:@"pattern"]
+                                                                               options:0
+                                                                                 error:&error];
+        if (regex == nil || error != nil)
+            continue;
+
+        NSArray *matches = [regex matchesInString:cleanSource
+                                          options:0
+                                            range:NSMakeRange(0, [cleanSource length])];
+        for (NSTextCheckingResult *match in matches) {
+            NSString *rawValue = [cleanSource substringWithRange:[match rangeAtIndex:1]];
+            NSArray *candidates = [[patternInfo objectForKey:@"split"] boolValue] ?
+                                  [rawValue componentsSeparatedByString:@","] :
+                                  [NSArray arrayWithObject:rawValue];
+            for (NSString *candidate in candidates) {
+                NSString *resolvedPath = TSBibliographyResolvedPath(candidate, baseDirectory);
+                if (resolvedPath != nil && ![seenPaths containsObject:resolvedPath]) {
+                    [paths addObject:resolvedPath];
+                    [seenPaths addObject:resolvedPath];
+                }
+            }
+        }
+    }
+
+    return paths;
+}
+
+static NSUInteger
+TSBibliographySkipWhitespace(NSString *string, NSUInteger index, NSUInteger limit)
+{
+    while (index < limit &&
+           [[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:[string characterAtIndex:index]]) {
+        index++;
+    }
+    return index;
+}
+
+static NSUInteger
+TSBibliographySkipWhitespaceAndCommas(NSString *string, NSUInteger index, NSUInteger limit)
+{
+    while (index < limit) {
+        unichar c = [string characterAtIndex:index];
+        if (c == ',' || [[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:c])
+            index++;
+        else
+            break;
+    }
+    return index;
+}
+
+static BOOL
+TSBibliographyIsIdentifierCharacter(unichar c)
+{
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+        return YES;
+
+    switch (c) {
+        case '_':
+        case '-':
+        case ':':
+        case '.':
+            return YES;
+        default:
+            return NO;
+    }
+}
+
+static NSUInteger
+TSBibliographySkipBalancedRange(NSString *string, NSUInteger index, unichar openChar, unichar closeChar)
+{
+    NSUInteger length = [string length];
+    NSUInteger cursor = index;
+    NSInteger depth = 0;
+    BOOL insideQuote = NO;
+
+    while (cursor < length) {
+        unichar c = [string characterAtIndex:cursor];
+
+        if (c == '"' && !TSBibliographyCharacterIsEscaped(string, cursor))
+            insideQuote = !insideQuote;
+        else if (!insideQuote) {
+            if (c == openChar)
+                depth++;
+            else if (c == closeChar) {
+                depth--;
+                if (depth == 0)
+                    return cursor + 1;
+            }
+        }
+
+        cursor++;
+    }
+
+    return length;
+}
+
+static NSString *
+TSBibliographyReadBraceValue(NSString *string, NSUInteger *indexPtr, NSUInteger limit)
+{
+    NSUInteger start = *indexPtr;
+    NSUInteger cursor = start + 1;
+    NSInteger depth = 1;
+    BOOL foundClosingBrace = NO;
+
+    while (cursor < limit && depth > 0) {
+        unichar c = [string characterAtIndex:cursor];
+        if (c == '{')
+            depth++;
+        else if (c == '}') {
+            depth--;
+            if (depth == 0)
+                foundClosingBrace = YES;
+        }
+        cursor++;
+    }
+
+    if (cursor <= start + 1) {
+        *indexPtr = MIN(cursor, limit);
+        return @"";
+    }
+
+    *indexPtr = MIN(cursor, limit);
+    if (foundClosingBrace)
+        return [string substringWithRange:NSMakeRange(start + 1, cursor - start - 2)];
+
+    return [string substringWithRange:NSMakeRange(start + 1, cursor - start - 1)];
+}
+
+static NSString *
+TSBibliographyReadQuotedValue(NSString *string, NSUInteger *indexPtr, NSUInteger limit)
+{
+    NSMutableString *value = [NSMutableString string];
+    NSUInteger cursor = *indexPtr + 1;
+
+    while (cursor < limit) {
+        unichar c = [string characterAtIndex:cursor];
+        if (c == '"' && !TSBibliographyCharacterIsEscaped(string, cursor)) {
+            cursor++;
+            break;
+        }
+        [value appendFormat:@"%C", c];
+        cursor++;
+    }
+
+    *indexPtr = MIN(cursor, limit);
+    return value;
+}
+
+static NSString *
+TSBibliographyReadBareValue(NSString *string, NSUInteger *indexPtr, NSUInteger limit, unichar closeChar)
+{
+    NSUInteger start = *indexPtr;
+    NSUInteger cursor = start;
+
+    while (cursor < limit) {
+        unichar c = [string characterAtIndex:cursor];
+        if (c == ',' || c == '#' || c == closeChar ||
+            [[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:c]) {
+            break;
+        }
+        cursor++;
+    }
+
+    *indexPtr = cursor;
+    if (cursor <= start)
+        return @"";
+
+    return [string substringWithRange:NSMakeRange(start, cursor - start)];
+}
+
+static NSString *
+TSBibliographyReadValue(NSString *string, NSUInteger *indexPtr, NSUInteger limit, unichar closeChar)
+{
+    NSMutableArray *parts = [NSMutableArray arrayWithCapacity:2];
+    NSUInteger cursor = TSBibliographySkipWhitespace(string, *indexPtr, limit);
+
+    while (cursor < limit) {
+        NSString *part = nil;
+        unichar c = [string characterAtIndex:cursor];
+
+        if (c == '{')
+            part = TSBibliographyReadBraceValue(string, &cursor, limit);
+        else if (c == '"')
+            part = TSBibliographyReadQuotedValue(string, &cursor, limit);
+        else
+            part = TSBibliographyReadBareValue(string, &cursor, limit, closeChar);
+
+        if ([part length] > 0)
+            [parts addObject:part];
+
+        cursor = TSBibliographySkipWhitespace(string, cursor, limit);
+        if (cursor < limit && [string characterAtIndex:cursor] == '#') {
+            cursor++;
+            cursor = TSBibliographySkipWhitespace(string, cursor, limit);
+            continue;
+        }
+        break;
+    }
+
+    *indexPtr = cursor;
+    return [parts componentsJoinedByString:@" "];
+}
+
+static NSString *
+TSBibliographyDisplayValue(NSString *value)
+{
+    NSMutableString *display = [NSMutableString stringWithCapacity:[value length]];
+    NSUInteger i, length = [value length];
+
+    for (i = 0; i < length; i++) {
+        unichar c = [value characterAtIndex:i];
+        if (c == '{' || c == '}' || c == '"')
+            continue;
+        [display appendFormat:@"%C", c];
+    }
+
+    return TSBibliographyCollapsedWhitespaceString(display);
+}
+
+static NSArray *
+TSBibliographySplitNames(NSString *names)
+{
+    NSError *error = nil;
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"\\s+and\\s+"
+                                                                           options:NSRegularExpressionCaseInsensitive
+                                                                             error:&error];
+    if (regex == nil || error != nil)
+        return [NSArray arrayWithObject:names];
+
+    NSMutableArray *parts = [NSMutableArray array];
+    __block NSUInteger start = 0;
+    NSArray *matches = [regex matchesInString:names options:0 range:NSMakeRange(0, [names length])];
+
+    for (NSTextCheckingResult *match in matches) {
+        NSRange range = [match range];
+        NSString *part = TSBibliographyTrimmedString([names substringWithRange:NSMakeRange(start, range.location - start)]);
+        if ([part length] > 0)
+            [parts addObject:part];
+        start = NSMaxRange(range);
+    }
+
+    if (start < [names length]) {
+        NSString *part = TSBibliographyTrimmedString([names substringFromIndex:start]);
+        if ([part length] > 0)
+            [parts addObject:part];
+    }
+
+    return [parts count] > 0 ? parts : [NSArray arrayWithObject:names];
+}
+
+static NSString *
+TSBibliographyLastNameForPerson(NSString *person)
+{
+    NSString *trimmed = TSBibliographyTrimmedString(person);
+    NSArray *commaComponents = [trimmed componentsSeparatedByString:@","];
+
+    if ([commaComponents count] > 1)
+        return TSBibliographyTrimmedString([commaComponents objectAtIndex:0]);
+
+    NSArray *spaceComponents = [trimmed componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    NSEnumerator *reverseEnumerator = [spaceComponents reverseObjectEnumerator];
+    NSString *component = nil;
+
+    while ((component = [reverseEnumerator nextObject])) {
+        component = TSBibliographyTrimmedString(component);
+        if ([component length] > 0)
+            return component;
+    }
+
+    return trimmed;
+}
+
+static NSString *
+TSBibliographyDisplayNameFromNames(NSString *names)
+{
+    if ([names length] == 0)
+        return @"";
+
+    NSArray *people = TSBibliographySplitNames(names);
+    NSString *firstLastName = TSBibliographyLastNameForPerson([people objectAtIndex:0]);
+
+    if ([people count] > 2)
+        return [firstLastName stringByAppendingString:@" et al"];
+
+    return firstLastName;
+}
+
+@interface TSBibliographyCompletionEntry : NSObject
+@property (retain) NSString *citeKey;
+@property (retain) NSString *displayName;
+@property (retain) NSString *title;
+@property (retain) NSString *year;
+- (NSString *)completionString;
+@end
+
+@implementation TSBibliographyCompletionEntry
+
+- (NSString *)completionString
+{
+    NSString *citeKey = self.citeKey ?: @"";
+    NSString *displayName = TSBibliographyCompletionSafeMetadata(self.displayName ?: @"");
+    NSString *year = TSBibliographyCompletionSafeMetadata(self.year ?: @"");
+    NSString *title = TSBibliographyCompletionSafeMetadata(self.title ?: @"");
+    NSMutableString *metadata = [NSMutableString string];
+
+    if ([displayName length] > 0)
+        [metadata appendString:displayName];
+
+    if ([year length] > 0) {
+        if ([metadata length] > 0)
+            [metadata appendString:@" "];
+        [metadata appendFormat:@"(%@)", year];
+    }
+
+    if ([title length] > 0) {
+        if ([metadata length] > 0)
+            [metadata appendString:@" "];
+        [metadata appendString:title];
+    }
+
+    if ([metadata length] == 0)
+        return citeKey;
+
+    // Format: "<citeKey> % <metadata>". The leading space + `%` is a stable
+    // marker the caller can use to detect TeX completion items, and the first
+    // space after the cite key is what insertCompletion: strips on.
+    return [NSString stringWithFormat:@"%@ %% %@", citeKey, metadata];
+}
+
+@end
+
+static NSArray *
+TSBibliographyEntriesFromContent(NSString *content)
+{
+    NSMutableArray *entries = [NSMutableArray array];
+    NSUInteger cursor = 0;
+    NSUInteger length = [content length];
+
+    while (cursor < length) {
+        NSRange atRange = [content rangeOfString:@"@"
+                                         options:0
+                                           range:NSMakeRange(cursor, length - cursor)];
+        if (atRange.location == NSNotFound)
+            break;
+
+        cursor = atRange.location + 1;
+        cursor = TSBibliographySkipWhitespace(content, cursor, length);
+
+        NSUInteger typeStart = cursor;
+        while (cursor < length && TSBibliographyIsIdentifierCharacter([content characterAtIndex:cursor]))
+            cursor++;
+        if (cursor == typeStart)
+            continue;
+
+        NSString *entryType = [[content substringWithRange:NSMakeRange(typeStart, cursor - typeStart)] lowercaseString];
+        cursor = TSBibliographySkipWhitespace(content, cursor, length);
+        if (cursor >= length)
+            break;
+
+        unichar openChar = [content characterAtIndex:cursor];
+        if (openChar != '{' && openChar != '(')
+            continue;
+
+        unichar closeChar = (openChar == '{') ? '}' : ')';
+        NSUInteger entryStart = cursor;
+        NSUInteger entryEnd = TSBibliographySkipBalancedRange(content, cursor, openChar, closeChar);
+        NSUInteger entryLimit = (entryEnd > 0) ? entryEnd - 1 : entryEnd;
+
+        if (entryEnd <= entryStart + 1) {
+            cursor = entryStart + 1;
+            continue;
+        }
+
+        if ([entryType isEqualToString:@"comment"] ||
+            [entryType isEqualToString:@"preamble"] ||
+            [entryType isEqualToString:@"string"]) {
+            cursor = entryEnd;
+            continue;
+        }
+
+        NSUInteger fieldCursor = TSBibliographySkipWhitespace(content, entryStart + 1, entryLimit);
+        NSUInteger keyStart = fieldCursor;
+        while (fieldCursor < entryLimit) {
+            unichar c = [content characterAtIndex:fieldCursor];
+            if (c == ',' || c == closeChar)
+                break;
+            fieldCursor++;
+        }
+
+        NSString *citeKey = TSBibliographyTrimmedString([content substringWithRange:NSMakeRange(keyStart, fieldCursor - keyStart)]);
+        NSString *author = nil;
+        NSString *editor = nil;
+        NSString *title = nil;
+        NSString *year = nil;
+
+        if (fieldCursor < entryLimit && [content characterAtIndex:fieldCursor] == ',')
+            fieldCursor++;
+
+        while (fieldCursor < entryLimit) {
+            fieldCursor = TSBibliographySkipWhitespaceAndCommas(content, fieldCursor, entryLimit);
+            if (fieldCursor >= entryLimit)
+                break;
+
+            NSUInteger fieldNameStart = fieldCursor;
+            while (fieldCursor < entryLimit && TSBibliographyIsIdentifierCharacter([content characterAtIndex:fieldCursor]))
+                fieldCursor++;
+            if (fieldCursor == fieldNameStart) {
+                fieldCursor++;
+                continue;
+            }
+
+            NSString *fieldName = [[content substringWithRange:NSMakeRange(fieldNameStart, fieldCursor - fieldNameStart)] lowercaseString];
+            fieldCursor = TSBibliographySkipWhitespace(content, fieldCursor, entryLimit);
+
+            if (fieldCursor >= entryLimit || [content characterAtIndex:fieldCursor] != '=') {
+                while (fieldCursor < entryLimit && [content characterAtIndex:fieldCursor] != ',')
+                    fieldCursor++;
+                continue;
+            }
+
+            fieldCursor++;
+            NSUInteger valueStart = fieldCursor;
+            NSString *rawValue = TSBibliographyReadValue(content, &fieldCursor, entryLimit, closeChar);
+            if (fieldCursor == valueStart && fieldCursor < entryLimit)
+                fieldCursor++;
+            NSString *displayValue = TSBibliographyDisplayValue(rawValue);
+
+            if ([fieldName isEqualToString:@"author"] && author == nil && [displayValue length] > 0)
+                author = displayValue;
+            else if ([fieldName isEqualToString:@"editor"] && editor == nil && [displayValue length] > 0)
+                editor = displayValue;
+            else if ([fieldName isEqualToString:@"title"] && title == nil && [displayValue length] > 0)
+                title = displayValue;
+            else if ([fieldName isEqualToString:@"year"] && year == nil && [displayValue length] > 0)
+                year = displayValue;
+            else if ([fieldName isEqualToString:@"date"] && year == nil && [displayValue length] >= 4)
+                year = [displayValue substringToIndex:4];
+        }
+
+        if ([citeKey length] > 0) {
+            TSBibliographyCompletionEntry *entry = [[TSBibliographyCompletionEntry alloc] init];
+            entry.citeKey = citeKey;
+            entry.displayName = TSBibliographyDisplayNameFromNames(author ?: editor ?: @"");
+            entry.title = title ?: @"";
+            entry.year = year ?: @"";
+            [entries addObject:entry];
+        }
+
+        cursor = entryEnd;
+    }
+
+    return entries;
+}
+
+@interface TSBibliographyFileWatcher : NSObject
+@property (retain) NSString *path;
+@property (assign) int fileDescriptor;
+@property (strong) dispatch_source_t source;
+- (void)invalidate;
+@end
+
+@implementation TSBibliographyFileWatcher
+
+- (void)invalidate
+{
+    if (self.source != nil) {
+        dispatch_source_cancel(self.source);
+        self.source = nil;
+    } else if (self.fileDescriptor >= 0) {
+        close(self.fileDescriptor);
+    }
+    self.fileDescriptor = -1;
+}
+
+- (void)dealloc
+{
+    [self invalidate];
+}
+
+@end
+
+@interface TSBibliographyCompletionCache : NSObject
+@property (assign) TSDocument *owner;
+@property (retain) NSString *effectiveSourcePath;
+@property (retain) NSString *effectiveSourceSignature;
+@property (retain) NSArray *bibliographyPaths;
+@property (retain) NSMutableDictionary *entriesByPath;
+@property (retain) NSMutableDictionary *signaturesByPath;
+@property (retain) NSMutableDictionary *watchersByPath;
+@property (retain) TSBibliographyFileWatcher *sourceWatcher;
+@property (retain) NSArray *mergedEntries;
+@property (assign) BOOL dirty;
+- (id)initWithOwner:(TSDocument *)owner;
+- (NSArray *)completionStringsForSearchString:(NSString *)searchString;
+- (void)invalidate;
+- (void)markDirty;
+@end
+
+@implementation TSBibliographyCompletionCache
+
+- (id)initWithOwner:(TSDocument *)owner
+{
+    self = [super init];
+    if (self) {
+        self.owner = owner;
+        self.bibliographyPaths = [NSArray array];
+        self.entriesByPath = [NSMutableDictionary dictionary];
+        self.signaturesByPath = [NSMutableDictionary dictionary];
+        self.watchersByPath = [NSMutableDictionary dictionary];
+        self.mergedEntries = [NSArray array];
+        self.dirty = YES;
+    }
+    return self;
+}
+
+- (void)dealloc
+{
+    [self invalidate];
+}
+
+- (void)markDirty
+{
+    self.dirty = YES;
+}
+
+- (void)invalidate
+{
+    for (TSBibliographyFileWatcher *watcher in [self.watchersByPath allValues])
+        [watcher invalidate];
+    [self.watchersByPath removeAllObjects];
+    [self.sourceWatcher invalidate];
+    self.sourceWatcher = nil;
+    [self.entriesByPath removeAllObjects];
+    [self.signaturesByPath removeAllObjects];
+    self.mergedEntries = [NSArray array];
+    self.bibliographyPaths = [NSArray array];
+    self.effectiveSourcePath = nil;
+    self.effectiveSourceSignature = nil;
+    self.dirty = YES;
+}
+
+- (TSDocument *)openDocumentForPath:(NSString *)path
+{
+    if ([path length] == 0)
+        return nil;
+
+    NSURL *fileURL = [NSURL fileURLWithPath:path];
+    id document = [[NSDocumentController sharedDocumentController] documentForURL:fileURL];
+    return [document isKindOfClass:[TSDocument class]] ? (TSDocument *)document : nil;
+}
+
+- (NSString *)signatureForPath:(NSString *)path content:(NSString **)contentOut forceReadFromDisk:(BOOL)forceReadFromDisk
+{
+    TSDocument *openDocument = [self openDocumentForPath:path];
+
+    if (openDocument != nil) {
+        NSString *content = [[openDocument textStorage] string] ?: @"";
+        if (contentOut != NULL)
+            *contentOut = content;
+        return [NSString stringWithFormat:@"memory:%lu:%lu",
+                (unsigned long)[content length],
+                (unsigned long)[content hash]];
+    }
+
+    NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
+    if (attributes == nil) {
+        if (contentOut != NULL)
+            *contentOut = nil;
+        return @"missing";
+    }
+
+    if (forceReadFromDisk && contentOut != NULL) {
+        NSStringEncoding encoding = NSUTF8StringEncoding;
+        NSString *content = [NSString stringWithContentsOfFile:path usedEncoding:&encoding error:nil];
+        if (content == nil)
+            content = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
+        *contentOut = content;
+    }
+
+    NSDate *modificationDate = [attributes objectForKey:NSFileModificationDate];
+    NSNumber *fileSize = [attributes objectForKey:NSFileSize];
+
+    return [NSString stringWithFormat:@"disk:%0.6f:%llu",
+            [modificationDate timeIntervalSinceReferenceDate],
+            [fileSize unsignedLongLongValue]];
+}
+
+- (TSBibliographyFileWatcher *)watcherForPath:(NSString *)path
+{
+    if ([path length] == 0 || ![[NSFileManager defaultManager] fileExistsAtPath:path])
+        return nil;
+
+    int fileDescriptor = open([path fileSystemRepresentation], O_EVTONLY);
+    if (fileDescriptor < 0)
+        return nil;
+
+    dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE,
+                                                      (uintptr_t)fileDescriptor,
+                                                      DISPATCH_VNODE_DELETE | DISPATCH_VNODE_WRITE | DISPATCH_VNODE_RENAME | DISPATCH_VNODE_REVOKE,
+                                                      dispatch_get_main_queue());
+    if (source == nil) {
+        close(fileDescriptor);
+        return nil;
+    }
+
+    TSBibliographyFileWatcher *watcher = [[TSBibliographyFileWatcher alloc] init];
+    watcher.path = path;
+    watcher.fileDescriptor = fileDescriptor;
+    watcher.source = source;
+
+    __weak TSBibliographyCompletionCache *weakSelf = self;
+    dispatch_source_set_event_handler(source, ^{
+        [weakSelf markDirty];
+    });
+    dispatch_source_set_cancel_handler(source, ^{
+        close(fileDescriptor);
+    });
+    dispatch_resume(source);
+
+    return watcher;
+}
+
+- (void)updateWatchersForSourcePath:(NSString *)sourcePath bibliographyPaths:(NSArray *)bibliographyPaths
+{
+    if (!TSBibliographyStringsEqual([self.sourceWatcher path], sourcePath)) {
+        [self.sourceWatcher invalidate];
+        self.sourceWatcher = [self watcherForPath:sourcePath];
+    }
+
+    NSMutableDictionary *newWatchers = [NSMutableDictionary dictionaryWithCapacity:[bibliographyPaths count]];
+
+    for (NSString *path in bibliographyPaths) {
+        TSBibliographyFileWatcher *watcher = [self.watchersByPath objectForKey:path];
+        if (watcher == nil)
+            watcher = [self watcherForPath:path];
+        if (watcher != nil)
+            [newWatchers setObject:watcher forKey:path];
+    }
+
+    for (NSString *path in self.watchersByPath) {
+        if ([newWatchers objectForKey:path] == nil)
+            [[self.watchersByPath objectForKey:path] invalidate];
+    }
+
+    self.watchersByPath = newWatchers;
+}
+
+- (void)refreshIfNeeded
+{
+    NSURL *effectiveSourceURL = [self.owner bibliographyEffectiveSourceURL];
+    NSString *effectiveSourcePath = [effectiveSourceURL path];
+    NSString *sourceContent = nil;
+    NSString *sourceSignature = nil;
+    BOOL sourceChanged = NO;
+
+    if ([effectiveSourcePath length] > 0) {
+        sourceSignature = [self signatureForPath:effectiveSourcePath content:nil forceReadFromDisk:NO];
+        sourceChanged = !TSBibliographyStringsEqual(self.effectiveSourcePath, effectiveSourcePath) ||
+                        !TSBibliographyStringsEqual(self.effectiveSourceSignature, sourceSignature);
+        if (sourceChanged) {
+            sourceSignature = [self signatureForPath:effectiveSourcePath content:&sourceContent forceReadFromDisk:YES];
+        }
+    } else {
+        sourceContent = [self.owner bibliographyEffectiveSourceString] ?: @"";
+        sourceSignature = [NSString stringWithFormat:@"memory:%lu:%lu",
+                           (unsigned long)[sourceContent length],
+                           (unsigned long)[sourceContent hash]];
+        sourceChanged = !TSBibliographyStringsEqual(self.effectiveSourcePath, effectiveSourcePath) ||
+                        !TSBibliographyStringsEqual(self.effectiveSourceSignature, sourceSignature);
+    }
+
+    if (sourceChanged) {
+        NSString *baseDirectory = [effectiveSourcePath stringByDeletingLastPathComponent];
+        NSArray *bibliographyPaths = TSBibliographyFilePathsFromSourceString(sourceContent ?: @"", baseDirectory);
+
+        self.effectiveSourcePath = effectiveSourcePath;
+        self.effectiveSourceSignature = sourceSignature;
+        self.bibliographyPaths = bibliographyPaths;
+        [self updateWatchersForSourcePath:effectiveSourcePath bibliographyPaths:bibliographyPaths];
+        self.dirty = YES;
+    }
+
+    if (!self.dirty) {
+        if ([self.signaturesByPath count] != [self.bibliographyPaths count]) {
+            self.dirty = YES;
+        } else {
+            for (NSString *path in self.bibliographyPaths) {
+                NSString *currentSignature = [self signatureForPath:path content:nil forceReadFromDisk:NO];
+                NSString *cachedSignature = [self.signaturesByPath objectForKey:path];
+                if (![cachedSignature isEqualToString:currentSignature]) {
+                    self.dirty = YES;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!self.dirty)
+        return;
+
+    NSMutableDictionary *entriesByPath = [NSMutableDictionary dictionaryWithCapacity:[self.bibliographyPaths count]];
+    NSMutableDictionary *signaturesByPath = [NSMutableDictionary dictionaryWithCapacity:[self.bibliographyPaths count]];
+    NSMutableArray *mergedEntries = [NSMutableArray array];
+    NSMutableSet *seenKeys = [NSMutableSet set];
+
+    for (NSString *path in self.bibliographyPaths) {
+        NSString *content = nil;
+        NSString *signature = [self signatureForPath:path content:&content forceReadFromDisk:YES];
+        NSArray *entries = content != nil ? TSBibliographyEntriesFromContent(content) : [NSArray array];
+
+        [entriesByPath setObject:entries forKey:path];
+        [signaturesByPath setObject:signature ?: @"missing" forKey:path];
+
+        for (TSBibliographyCompletionEntry *entry in entries) {
+            if ([entry.citeKey length] == 0 || [seenKeys containsObject:entry.citeKey])
+                continue;
+            [mergedEntries addObject:entry];
+            [seenKeys addObject:entry.citeKey];
+        }
+    }
+
+    self.entriesByPath = entriesByPath;
+    self.signaturesByPath = signaturesByPath;
+    self.mergedEntries = mergedEntries;
+    self.dirty = NO;
+}
+
+- (NSArray *)completionStringsForSearchString:(NSString *)searchString
+{
+    NSString *needle = TSBibliographyTrimmedString(searchString);
+    NSMutableArray *prefixMatches = [NSMutableArray array];
+    NSMutableArray *secondaryMatches = [NSMutableArray array];
+
+    [self refreshIfNeeded];
+
+    for (TSBibliographyCompletionEntry *entry in self.mergedEntries) {
+        NSString *citeKey = entry.citeKey ?: @"";
+        NSString *displayName = entry.displayName ?: @"";
+        NSString *title = entry.title ?: @"";
+        NSString *completion = [entry completionString];
+
+        if ([needle length] == 0) {
+            [prefixMatches addObject:completion];
+            continue;
+        }
+
+        NSRange prefixRange = [citeKey rangeOfString:needle options:NSCaseInsensitiveSearch];
+        if (prefixRange.location == 0) {
+            [prefixMatches addObject:completion];
+        } else if (prefixRange.location != NSNotFound ||
+                   [displayName rangeOfString:needle options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                   [title rangeOfString:needle options:NSCaseInsensitiveSearch].location != NSNotFound) {
+            [secondaryMatches addObject:completion];
+        }
+    }
+
+    [prefixMatches addObjectsFromArray:secondaryMatches];
+    return prefixMatches;
+}
+
 @end
 
 @implementation TSDocument
@@ -80,9 +1009,9 @@
 NSInteger strSort(id s1, id s2, void *context)
 {
     NSComparisonResult result;
-        
+
     result =  [(NSString *)s1 localizedCaseInsensitiveCompare: (NSString *)s2];
-               
+
     return result;
 }
 
@@ -131,12 +1060,12 @@ withDarkColors = NO;
     NSString *currentString;
     NSRange theRange;
     NSTextView  *theTextView;
-    
-      
+
+
     currentString = [stringWindowTextView string];
     theRange.location = 0;
     theRange.length = [currentString length];
-    
+
     [stringWindowTextView insertText: theString replacementRange: theRange];
 }
 
@@ -145,34 +1074,34 @@ withDarkColors = NO;
     NSTextView* theTextView;
     NSRange     theRange;
     NSInteger   theLength;
-    
+
     theTextView = [self getStringWindowTextView];
     theRange.location = 0;
     theLength = [[theTextView string] length];
     theRange.length = theLength;
-    
+
      switch(value)
     {
         case 0:
             [theTextView setAlignment:NSTextAlignmentLeft range: theRange ];
             break;
-            
+
         case 1:
             [theTextView setAlignment:NSTextAlignmentCenter range: theRange ];
             break;
-            
+
         case 2:
             [theTextView setAlignment:NSTextAlignmentRight range: theRange ];
             break;
-            
+
         default:
             [theTextView setAlignment:NSTextAlignmentCenter range: theRange ];
-            
-           
-           
+
+
+
     }
-  
-    
+
+
 }
 
 - (void)stringLeftPushed:(id)sender
@@ -208,13 +1137,13 @@ withDarkColors = NO;
 {
     NSTextView *theTextView;
     NSString    *theString;
-    
+
     theTextView = [self getStringWindowTextView];
     theString = [theTextView string];
     return theString;
-    
+
     // return @"Hello, world";
-    
+
     //return [stringWindowTextView string];
 }
 
@@ -259,7 +1188,7 @@ withDarkColors = NO;
 - (void)switchExperimentWindows
 {
     NSInteger level1, level2;
-    
+
     if ([scrapWindow isVisible] && [scrapPDFWindow isVisible])
     {
         if ([scrapWindow isKeyWindow])
@@ -280,24 +1209,24 @@ withDarkColors = NO;
 
 -  (NSMenu *)getContextMenu
 {
-    
+
     if (self.docUseAnnotationMenu)
         return [self getAnnotationMenu];
     else
         return nil;
-        
+
 }
 
 - (id)init
 {
     NSColor *myColor1, *myColor2, *myColor3, *myColor4, *myColor5, *myColor6, *myColor7;
-    
+
 	//id result = [super init];
     id result = [super init];
     self = result;
-    
+
     self.docUseAnnotationMenu = NO;
-	
+
 	isFullScreen = NO;
 
 	errorNumber = 0;
@@ -316,12 +1245,12 @@ withDarkColors = NO;
     self.markerColorParenAttribute = 0;
     self.markerColorCurlyAttribute = 0;
     self.markerColorSquareAttribute = 0;
-    
+
     [self readExplColors];
     [self setToggleEditModeCheck:0];
     WindowAfterTypeset = textWindow;
-    
-    
+
+
     /*
     myColor1 = [NSColor colorWithRed: 1.0 green: 0.0 blue: 1.0 alpha: 1.00];
     self.explColorAttribute1 = [[NSDictionary alloc] initWithObjectsAndKeys:myColor1, NSForegroundColorAttributeName, nil];
@@ -338,13 +1267,13 @@ withDarkColors = NO;
     myColor7 = [NSColor colorWithRed: 0.7 green: 0.0 blue: 0.7 alpha: 1.00];
     self.explColorAttribute7 = [[NSDictionary alloc] initWithObjectsAndKeys:myColor7, NSForegroundColorAttributeName,nil];
     */
-     
+
     fullscreenPageStyle = 0;
     fullscreenResizeOption = 0;
     oldPageStyle = 2;
     oldResizeOption = 2;
     useFullSplitWindow = NO;
-    
+
     self.useTabs = NO;
     self.useTabsWithFiles = NO;
     self.numberOfTabs = 0;
@@ -367,7 +1296,7 @@ withDarkColors = NO;
         self.syncWithOvals = 0;
     self.activateVoiceOverFix = [SUD boolForKey: FixVoiceOverKey];
     self.annotationsExist = NO;
-    
+
  	tagLine = NO;
 	self.texRep = nil;
 	fileIsTex = YES;
@@ -404,7 +1333,7 @@ withDarkColors = NO;
     self.blockCursor = [SUD boolForKey:BlockCursorKey];
     if (self.blockCursor)
         self.syntaxcolorEntry = YES;
-    
+
 	lineNumbersShowing = [SUD boolForKey:LineNumberEnabledKey];
 	invisibleCharactersShowing = [SUD boolForKey:ShowInvisibleCharactersEnabledKey]; // added by Terada
 	self.lineNumberView1 = nil;
@@ -417,7 +1346,7 @@ withDarkColors = NO;
         self.RTLDisplay = NO;
     else
         self.RTLDisplay = YES;
-    
+
 
 	lastCursorLocation = 0; // added by Terada
 	lastStringLength = 0; // added by Terada
@@ -430,7 +1359,7 @@ withDarkColors = NO;
 	b = [SUD floatForKey: highlightBracesBlueKey];
 	highlightBracesColorDict = [NSDictionary dictionaryWithObjectsAndKeys:
 								 [NSColor colorWithDeviceRed:r green:g blue:b alpha:1], NSForegroundColorAttributeName, nil ] ;	 // added by Terada
-	
+
 	r = [SUD floatForKey: highlightContentRedKey];
 	g = [SUD floatForKey: highlightContentGreenKey];
 	b = [SUD floatForKey: highlightContentBlueKey];
@@ -441,17 +1370,17 @@ withDarkColors = NO;
 	// highlightContentColorDict = [[NSDictionary dictionaryWithObjectsAndKeys:
 	// 							  [NSColor colorWithDeviceRed:1 green:1 blue:0.5 alpha:1], NSBackgroundColorAttributeName, nil ] retain];	 // added by Terada
  */
-    
+
     process_queue = dispatch_queue_create("Serialisation queue", DISPATCH_QUEUE_SERIAL);
-	
+
 	_encoding = [[TSDocumentController sharedDocumentController] encoding];
 
 	_textStorage = [[NSTextStorage alloc] init];
-    
+
 //ULRICH BAUER PATCH
     dispatch_source = NULL;
 //END PATCH
-    
+
 
 	return result;
 }
@@ -459,7 +1388,7 @@ withDarkColors = NO;
 - (void)dealloc
 {
 	NSInteger	i;
-    
+
     if (scanner != NULL)
     {
         if (self.useOldSyncParser)
@@ -469,19 +1398,19 @@ withDarkColors = NO;
             synctex_scanner_free(scanner);
     }
 	scanner = NULL;
-	
+
 	for (i = 0; i < NUMBEROFERRORS; i++) {
 		if (errorLinePath[i] != nil)
 //			[errorLinePath[i] release];
 		errorLinePath[i] = nil;
 	}
-	
+
 	for (i = 0; i < NUMBEROFERRORS; i++) {
 		if (errorText[i] != nil)
 //			[errorText[i] release];
 		errorText[i] = nil;
 	}
-	
+
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
 	[[NSNotificationCenter defaultCenter] removeObserver:pdfView];// mitsu 1.29 (O) need to remove here, otherwise updateCurrentPage fails
 	if (self.tagTimer != nil) {
@@ -509,11 +1438,11 @@ withDarkColors = NO;
 	[self.lineNumberView2 release];
 	[self.logLineNumberView release];
      */
-	 /* The next line line could be dangerous! It is needed if the source window 
-	is initialized, so without it there is a small memory leak. 
-	But if a pdf file is opened and doesn't open the source window, 
+	 /* The next line line could be dangerous! It is needed if the source window
+	is initialized, so without it there is a small memory leak.
+	But if a pdf file is opened and doesn't open the source window,
 	then the line causes a crash when TeXShop quits.
-	(Later this was fixed by retaining it even if the source window doesn't open) 
+	(Later this was fixed by retaining it even if the source window doesn't open)
 	*/
 //	[scrollView2 release];
 
@@ -534,9 +1463,9 @@ withDarkColors = NO;
 	[mouseModeMatrix release]; // mitsu 1.29 (O)
 
 	[self.pdfLastModDate release];
-	
+
 	[self.spellLanguage release];
-	
+
 	if (self.logExtension != nil)
 		[self.logExtension release];
 */
@@ -546,9 +1475,9 @@ withDarkColors = NO;
     self.myPDFKitView2 = nil;
     [self.htmlWindow close];
     self.htmlWindow = nil;
-	
+
 	[self invalidateCompletionConnection];
-    
+
 //	[myPDFKitView2 release];
 
 //	[super dealloc];
@@ -561,14 +1490,14 @@ withDarkColors = NO;
     [self addWindowController: self.standardController];
    self.splitController = [[TSWindowController alloc] initWithWindow: fullSplitWindow];
   //  [self addWindowController: self.splitController];
-    
+
 }
 
 + (BOOL)autosavesInPlace
 {
 
     return doAutoSave;
-    
+
 }
 
 - (NSPopUpButton *)programButton
@@ -588,19 +1517,19 @@ withDarkColors = NO;
 {
     if (! atLeastSierra)
         return;
-    
+
     NSInteger value = [SUD integerForKey:OpenAsTabsKey];
-    
+
     switch (value) {
-            
+
         case 0: break;
-            
+
         case 1: theWindow.tabbingMode = NSWindowTabbingModePreferred; break;
-            
+
         case 2: theWindow.tabbingMode = NSWindowTabbingModeDisallowed; break;
-            
+
         default: break;
-        
+
     }
 }
 
@@ -612,20 +1541,20 @@ withDarkColors = NO;
     NSRect          theVisibleRect;
     NSRange         theRange;
     NSInteger       drawerState, tabPreference;
-    
+
     MyPDFKitView    *aView;
     NSInteger       pageIndex;
-    
+
     [super restoreStateWithCoder:coder];
-    
+
     if ([coder containsValueForKey:@"NumberingCorrectionKey"]) {
-        
+
         self.numberingCorrection = [coder decodeIntegerForKey:@"NumberingCorrectionKey"];
-        
+
     }
-        
-        
-        
+
+
+
     if (atLeastSierra)
     {
         tabPreference = [SUD integerForKey:OpenAsTabsKey];
@@ -638,44 +1567,44 @@ withDarkColors = NO;
                 [myDrawer close];
         }
     }
- 
-    
+
+
     if ([coder containsValueForKey:@"ForFullSplitWindow"]) {
-        
+
         fromFullSplitWindow = [coder decodeBoolForKey:@"ForFullSplitWindow"];
-        
+
         if (! fromFullSplitWindow) {
-            
+
             if ([coder containsValueForKey:@"TeXShopPDFWindow"]) {
-                
+
                 if ([coder respondsToSelector:@selector(decodeObjectOfClass:forKey:)])
                     windowState = (NSString *)[coder decodeObjectOfClass:[NSString class] forKey:@"TeXShopPDFWindow"];
                 else
                     windowState = (NSString *)[coder decodeObjectForKey:@"TeXShopPDFWindow"];
                 [self.pdfKitWindow setFrameFromString:windowState];
             }
-            
+
             if ([coder containsValueForKey:@"VisiblePDFPage"])
             {
                 pageIndex = [coder decodeIntegerForKey:@"VisiblePDFPage"];
                 aView = (MyPDFKitView *)self.myPDFKitView;
                 [aView goToPage: [[aView document] pageAtIndex: pageIndex]];
             }
-            
+
             /*
             if ([coder containsValueForKey:@"TeXShopPDFWindowOrigin"]) {
                 thePoint = [coder decodePointForKey:@"TeXShopPDFWindowOrigin"];
                 [self.pdfKitWindow setFrameOrigin: thePoint];
             }
-            
+
             if ([coder containsValueForKey:@"VisiblePDFRect"]) {
                 theVisibleRect = [coder decodeRectForKey:@"VisiblePDFRect"];
                 [[self.myPDFKitView documentView] scrollRectToVisible: theVisibleRect];
             }
             */
         }
-  
-                    
+
+
         if (fromFullSplitWindow) {
             if ([coder containsValueForKey:@"SplitWindow"])
             {
@@ -685,14 +1614,14 @@ withDarkColors = NO;
                     windowState = (NSString *)[coder decodeObjectForKey:@"SplitWindow"];
                 [fullSplitWindow setFrameFromString:windowState];
             }
-            
+
             if ([coder containsValueForKey:@"SplitVisiblePDFPage"])
             {
                 pageIndex = [coder decodeIntegerForKey:@"SplitVisiblePDFPage"];
                 aView = (MyPDFKitView *)self.myPDFKitView;
                 [aView goToPage: [[aView document] pageAtIndex: pageIndex]];
             }
-            
+
             /*
             if ([coder containsValueForKey:@"SplitWindowOrigin"])
             {
@@ -728,7 +1657,7 @@ withDarkColors = NO;
                      [leftView setFrameSize: leftSize];
                  }
              }
-            
+
             if (fullSplitWindow.tabbingMode == NSWindowTabbingModePreferred)
                 [fullSplitWindow mergeAllWindows: fullSplitWindow];
         }
@@ -738,34 +1667,34 @@ withDarkColors = NO;
 - (void)encodeRestorableStateWithCoder:(NSCoder *)coder
 {
     [super encodeRestorableStateWithCoder: coder];
-    
+
     // record numberingCorrection
     [coder encodeInteger: self.numberingCorrection forKey: @"NumberingCorrectionKey"];
-    
+
     // record PDF window's size and position
     NSString *theCode, *theSplitCode;
     MyPDFKitView *aView;
     NSInteger pageIndex;
-     
+
     [coder encodeBool:useFullSplitWindow forKey:@"ForFullSplitWindow"];
     [coder encodeInteger:[myDrawer state] forKey:@"TeXShopDrawerState"];
 
     if (! useFullSplitWindow) {
-        
+
         aView = (MyPDFKitView *)self.myPDFKitView;
         pageIndex = [[aView document] indexForPage: [aView currentPage]];
         [coder encodeInteger: pageIndex forKey:@"VisiblePDFPage"];
-        
+
         // NSRect theRect = [self.pdfKitWindow frame];
         // NSPoint theOrigin = theRect.origin;
         //NSRect theVisibleRect = [[self.myPDFKitView documentView] visibleRect];
-       
+
         theCode = [self.pdfKitWindow stringWithSavedFrame];
         [coder encodeObject: theCode forKey:@"TeXShopPDFWindow"];
         // [coder encodePoint: theOrigin forKey:@"TeXShopPDFWindowOrigin"];
         // [coder encodeRect: theVisibleRect forKey:@"VisiblePDFRect"];
      }
-    
+
     if (useFullSplitWindow) {
         // NSRect theSplitRect = [fullSplitWindow frame];
         // NSPoint theSplitOrigin = theSplitRect.origin;
@@ -774,42 +1703,42 @@ withDarkColors = NO;
         NSString *stringForRange = NSStringFromRange(theSelectedRange);
         float leftWidth = leftView.frame.size.width;
         float rightWidth = rightView.frame.size.width;
-       
+
         theSplitCode = [fullSplitWindow stringWithSavedFrame];
         [coder encodeObject: theSplitCode forKey:@"SplitWindow"];
         aView = (MyPDFKitView *)self.myPDFKitView;
         pageIndex = [[aView document] indexForPage: [aView currentPage]];
         [coder encodeInteger: pageIndex forKey:@"SplitVisiblePDFPage"];
-        
+
         // [coder encodePoint: theSplitOrigin forKey: @"SplitWindowOrigin"];
         // [coder encodeRect: theVisibleSplitRect forKey:@"VisibleSplitPDFRect"];
         [coder encodeObject:stringForRange forKey:@"TextSelection"];
         [coder encodeFloat: leftWidth forKey:@"LeftViewWidth"];
         [coder encodeFloat: rightWidth forKey:@"RightViewWidth"];
- 
+
     }
-    
-     
+
+
 }
 
 
 
 - (IBAction)convertTiff:(id)sender
-{ 
+{
     NSArray         *fileTypes;
     NSString        *filePath, *directoryPath;
     // NSArray         *urls;
     // NSFileManager   *fileManager;
     // NSString        *sipsPath;
     NSWindow        *theWindow;
-    
+
     fileTypes = [NSArray arrayWithObjects: @"tif", @"tiff", nil];
     NSOpenPanel * openPanel = [NSOpenPanel openPanel];
     [openPanel setTitle: @"Convert tiff to png"];
     [openPanel setPrompt: NSLocalizedString(@"Convert", @"Convert")];
     filePath = [[self fileURL] path];
     directoryPath = [filePath stringByDeletingLastPathComponent];
-    
+
     if (! directoryPath) {
         directoryPath = NSHomeDirectory();
         }
@@ -823,11 +1752,11 @@ withDarkColors = NO;
         theWindow = textWindow;
     [openPanel beginSheetModalForWindow:theWindow completionHandler:^(NSInteger result1)
      {
-    
+
     if (result1 == NSFileHandlingPanelOKButton) {
         NSArray *urls = [openPanel URLs];
         NSFileManager *fileManager = [NSFileManager defaultManager];
-        
+
         if ([fileManager fileExistsAtPath:@"/usr/local/bin/convert"])
         {
             [urls enumerateObjectsUsingBlock:^(NSURL *obj, NSUInteger idx, BOOL *stop) {
@@ -871,23 +1800,23 @@ withDarkColors = NO;
 			self.lineNumberView1 = [[NoodleLineNumberView alloc] initWithScrollView:scrollView];
 			self.lineNumberView2 = [[NoodleLineNumberView alloc] initWithScrollView:scrollView2];
 			self.logLineNumberView = [[NoodleLineNumberView alloc] initWithScrollView:self.logScrollView];
-			
+
 			[scrollView setVerticalRulerView:self.lineNumberView1];
             [scrollView2 setVerticalRulerView:self.lineNumberView2];
             [self.logScrollView setVerticalRulerView:self.logLineNumberView];
-            
+
 // FIX RULER SCROÒL
             [self.lineNumberView1 setDocument:self]; // added by Terada (for Lion bug)
             [self.lineNumberView2 setDocument:self]; // added by Terada (for Lion bug)
             [self.logLineNumberView setDocument:self]; // added by Terada (for Lion bug)
 // END FIX RULER SCROLL
-			
+
 			[scrollView setHasVerticalRuler:YES];
 			[scrollView setHasHorizontalRuler:NO];
-			
+
 			[scrollView2 setHasVerticalRuler:YES];
 			[scrollView2 setHasHorizontalRuler:NO];
-			
+
 			[self.logScrollView setHasVerticalRuler:YES];
 			[self.logScrollView setHasHorizontalRuler:NO];
 		}
@@ -929,11 +1858,11 @@ withDarkColors = NO;
 	NSString	*theFileName;
 	NSString	*fileExtension;
 	BOOL		doPreview;
-    
-	
+
+
 	theFileName = [[self fileURL] path];
 	fileExtension = [theFileName pathExtension];
-	
+
 	doPreview = [(TSAppDelegate *)[[NSApplication sharedApplication] delegate] forPreview];
 
 
@@ -941,7 +1870,7 @@ withDarkColors = NO;
 		return NO;  // this line was YES, but that broke Apple's Resume feature for Untitled Documents
 	else if ( doPreview)
 		return YES;
-	else if 
+	else if
 		(([fileExtension isEqualToString: @"pdf"]) ||
 		([fileExtension isEqualToString: @"jpeg"]) ||
 		([fileExtension isEqualToString: @"jpg"]) ||
@@ -972,7 +1901,7 @@ withDarkColors = NO;
     }
     else
         [outputText setUsesFindPanel: YES];
-    
+
     if ( ConsoleWindowPosFixed == [SUD integerForKey:ConsoleWindowPosModeKey])
     {
         [outputWindow setFrameFromString:[SUD stringForKey:ConsoleWindowFixedPosKey]];
@@ -981,33 +1910,33 @@ withDarkColors = NO;
     {
         [outputWindow setFrameAutosaveName:ConsoleWindowNameKey];
     }
-    
+
     [self setTabBehavior: outputWindow];
-	
+
 /*
 	minWindowSize = [outputWindow minSize];
 	maxWindowSize = [outputWindow maxSize];
- 
-	
+
+
 	if ([SUD boolForKey: ConsoleWidthResizeKey] == YES) {
 		minWindowSize.width = 200;
-		maxWindowSize.width = 2000; 
+		maxWindowSize.width = 2000;
 		}
 	else {
 		minWindowSize.width = 504;
 		maxWindowSize.width = 504;
 		}
-		
+
 	[outputWindow setMinSize: minWindowSize];
 	[outputWindow setMaxSize: maxWindowSize];
- 
-    
+
+
 */
 }
 
 - (void)setupLogWindow
 {
-    
+
     [self setLogWindowBackgroundColorFromPreferences: nil];
     [self setLogWindowForegroundColorFromPreferences: nil];
     [self setLogWindowFontFromPreferences:nil];
@@ -1025,7 +1954,7 @@ withDarkColors = NO;
     self.logTextView.continuousSpellCheckingEnabled = NO;
     self.logTextView.grammarCheckingEnabled = NO;
     [self setTabBehavior: [self logWindow]];
-    
+
 }
 
 
@@ -1038,7 +1967,7 @@ withDarkColors = NO;
 												green: [SUD floatForKey:foreground_GKey]
 												 blue: [SUD floatForKey:foreground_BKey]
 												alpha:1.0];
-												
+
 	backgroundColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:background_RKey]
 												green: [SUD floatForKey:background_GKey]
 												 blue: [SUD floatForKey:background_BKey]
@@ -1049,11 +1978,11 @@ withDarkColors = NO;
 													 blue: [SUD floatForKey:insertionpoint_BKey]
 													alpha:1.0];
 */
-   
+
   //  aTextView.writingToolsBehavior = .limited;
   //  aTextView.writingToolsAllowedInputOptions = [.plainText];
-    
-    
+
+
 	[aTextView setAutoresizingMask: NSViewWidthSizable];
 	[[aTextView textContainer] setWidthTracksTextView:YES];
 	[aTextView setDelegate:self];
@@ -1075,16 +2004,16 @@ withDarkColors = NO;
     }
     else
         [aTextView setUsesFindPanel: YES];
-    
+
     //  [aTextView setUsesFindBar: YES]; //
     // [aTextView setUsesInspectorBar: YES]; // this worked!
-    
+
     // Add context menu item "Character Info" by Terada
     NSMenu* aMenu = [aTextView menu];
     if([aMenu indexOfItemWithTitle:NSLocalizedString(@"Character Info", @"Character Info")] == -1)
         [aMenu addItemWithTitle:NSLocalizedString(@"Character Info", @"Character Info") action:@selector(showCharacterInfo:) keyEquivalent:@""];
 
- 
+
 	[(TSTextView *)aTextView setDocument: self];
 }
 
@@ -1150,25 +2079,25 @@ withDarkColors = NO;
 	BOOL			done;
 	NSString		*defaultCommand;
     BOOL            optionKeyPressed;
-    
+
 
 	[super windowControllerDidLoadNib:aController];
-    
-  
-      
+
+
+
     self.syntaxColor = [SUD boolForKey: SyntaxColoringEnabledKey];
     self.useExplColor = [SUD boolForKey: expl3SyntaxColoringKey];
     [self applyInvisibleCharactersShowing]; // added by Terada
     self.pdfKitWindow.previewClosed = NO;
-    
+
  //   [self.splitController setWindow: fullSplitWindow];
-    
+
     NSUInteger optionPressed = NSEvent.modifierFlags & NSEventModifierFlagOption;
     if (optionPressed == 0)
         optionKeyPressed = NO;
     else
         optionKeyPressed = YES;
-    
+
 	// WARNING: I moved this to the start from much further on; the original location is still present
 	// but commented out. This speeds up loading dramatically, and I think it causes no problems. The basic idea is
 	// to resize windows before they have data rather than afterward; resizing after editing data is present
@@ -1180,11 +2109,11 @@ withDarkColors = NO;
 		 errorLinePath[i] = nil;
 		errorText[i] = nil;
 	}
-	
+
 	/* when opening an empty document, must open the source editor */
 	theFileName = [[self fileURL] path];
     fileExtension = [theFileName pathExtension];
-    
+
     if (! (theFileName == nil))
     {
         if (
@@ -1193,7 +2122,7 @@ withDarkColors = NO;
             ([fileExtension isEqualToString: @"ptx"]) ||
             ([fileExtension isEqualToString: @"PTX"]) ||
             ([fileExtension isEqualToString: @"html"]) ||
-            ([fileExtension isEqualToString: @"HTML"]) 
+            ([fileExtension isEqualToString: @"HTML"])
             )
         {
             self.fileIsXML = TRUE;
@@ -1202,15 +2131,15 @@ withDarkColors = NO;
             [(TSAppDelegate *)[[NSApplication sharedApplication] delegate] reReadCommandCompletionData];
         }
      }
- 
+
 	_externalEditor = [(TSAppDelegate *)[[NSApplication sharedApplication] delegate] forPreview];
 	if ((theFileName == nil) && _externalEditor)
 		_externalEditor = NO;
-		
+
 	self.documentType = isTeX;
-	
+
 	fileIsTex = YES;
-	
+
 	if ((! [self isTexExtension: fileExtension])
 		&& ([[NSFileManager defaultManager] fileExistsAtPath: theFileName]))
 	{
@@ -1229,9 +2158,9 @@ withDarkColors = NO;
 		}
 	else
 		skipTextWindow = NO;
-    
-    
-    
+
+
+
     [self flipIndexColor:  ![SUD boolForKey:IndexColorStartKey]];
 
 
@@ -1240,7 +2169,7 @@ withDarkColors = NO;
 // The code below was commented out for Lion, but it works and
 // and is definitely needed for Mountain Lion; otherwise a blank
 // edit window appears when opening graphic files and in external editor mode
-    
+
     if (skipTextWindow) {
  //       if (NSAppKitVersionNumber > NSAppKitVersionNumber10_7_2) //i.e., Mountain Lion or higher
           if (floor(NSAppKitVersionNumber) <= NSAppKitVersionNumber10_7)
@@ -1255,13 +2184,13 @@ withDarkColors = NO;
 
 
 
-    
-    
-     
+
+
+
  	// can this fix the printer; Feb 1, 2006
-	
+
 	// [self setPrintInfo:[NSPrintInfo sharedPrintInfo]];
-	
+
 	// the code below exists because the spell checker sometimes did not exist
 	// in Panther developer releases; it is probably not necessary for
 	// the final release
@@ -1271,7 +2200,7 @@ withDarkColors = NO;
 	NS_HANDLER
 		spellExists = NO;
 	NS_ENDHANDLER
-	
+
 	self.pdfKitWindow.activeView = self.myPDFKitView;
 
 	switch ([SUD integerForKey: LineBreakModeKey]) {
@@ -1298,36 +2227,36 @@ withDarkColors = NO;
 	[self setupTextView:textView2];
 	[(TSTextView *)textView2 setDocument: self];
 	*/
-	
+
 	// The next lines are needed because we may access scrollView2 even if the source window doesn't open
 //	[scrollView2 retain];
 	[scrollView2 removeFromSuperview];
-	
+
 //	[myPDFKitView2 retain];
 	[self.myPDFKitView2 removeFromSuperview];
-	
+
 	// The following line is needed because otherwise there is a crash if a document is closed but the log file was never opened. Mysterious!
 //	[self.logScrollView retain];
 
 	[self setupConsole];
  	[self setupLogWindow];
-    
+
 
 if (! skipTextWindow) {
 	textView = textView1;
 	[self setupTextView:textView1];
 	[self setupTextView:textView2];
- 
-    
-    
+
+
+
     // Terada: Stop bouncing scrolling on Yosemite
     // May 27, 2018; Koch turned off elasticity for everyone
  //    if (! [SUD boolForKey: SourceScrollElasticityKey])
-    
 
 
-    
-    
+
+
+
 
     if (spellExists) {
 		[textView2 setContinuousSpellCheckingEnabled:[SUD boolForKey:SpellCheckEnabledKey]];
@@ -1353,30 +2282,30 @@ if (! skipTextWindow) {
 	// [scrollView2 removeFromSuperview];
 	windowIsSplit = NO;
 	//  endforsplit
-    
+
 	if (lineNumbersShowing) {
 		if (self.lineNumberView1 == nil) {
-            
+
            	 self.lineNumberView1 = [[NoodleLineNumberView alloc] initWithScrollView:scrollView];
 			 self.lineNumberView2 = [[NoodleLineNumberView alloc] initWithScrollView:scrollView2];
 			self.logLineNumberView = [[NoodleLineNumberView alloc] initWithScrollView:self.logScrollView];
-			
+
 			 [scrollView setVerticalRulerView:self.lineNumberView1];
 			 [scrollView2 setVerticalRulerView:self.lineNumberView2];
 			 [self.logScrollView setVerticalRulerView: self.logLineNumberView];
-            
+
 // FIX RULER SCROLL
             [self.lineNumberView1 setDocument:self]; // added by Terada (for Lion bug)
             [self.lineNumberView2 setDocument:self]; // added by Terada (for Lion bug)
             [self.logLineNumberView setDocument:self]; // added by Terada (for Lion bug)
 // END FIX RULER SCROLL
-			
+
 			 [scrollView setHasVerticalRuler:YES];
 			 [scrollView setHasHorizontalRuler:NO];
-			
+
 			 [scrollView2 setHasVerticalRuler:YES];
 			 [scrollView2 setHasHorizontalRuler:NO];
-			
+
 			[self.logScrollView setHasVerticalRuler:YES];
 			[self.logScrollView setHasHorizontalRuler:NO];
 			}
@@ -1384,7 +2313,7 @@ if (! skipTextWindow) {
 		 [scrollView2 setRulersVisible:YES];
 		[self.logScrollView setRulersVisible:YES];
 		}
-    
+
     // Terada: Stop bouncing scrolling on Yosemite
     // May 27, 2018; Koch turned off elasticity for everyone
     //    if (! [SUD boolForKey: SourceScrollElasticityKey])
@@ -1395,7 +2324,7 @@ if (! skipTextWindow) {
         scrollView2.horizontalScrollElasticity = NSScrollElasticityNone;
         scrollView2.verticalScrollElasticity = NSScrollElasticityNone;
     }
-    
+
 /*
 #ifdef MOJAVEORHIGHER
     if ((atLeastMojave) && (textView1.effectiveAppearance.name == NSAppearanceNameDarkAqua))
@@ -1404,7 +2333,7 @@ if (! skipTextWindow) {
 #endif
         [self changeColors: NO];
 
-    
+
     [NSTimer scheduledTimerWithTimeInterval:1.0
                                      target:self
                                    selector:@selector(callNotification:)
@@ -1414,20 +2343,20 @@ if (! skipTextWindow) {
 	}
 
 
-    
-    
-   
+
+
+
     [self setupToolbar];
-  
+
     [self configureTypesetButton];
-     
+
 
 
 	if ([SUD boolForKey:ShowSyncMarksKey]) {
 		[self.syncBox setState:1];
 		showSync = YES;
 	}
-    
+
 #ifdef MOJAVEORHIGHER
     if ((atLeastMojave) && (textView1.effectiveAppearance.name == NSAppearanceNameDarkAqua))
         [self changeColors: YES];
@@ -1450,11 +2379,11 @@ if (! skipTextWindow) {
 	[self fixShowFullPathButton]; // added by Terada
 
 	[self registerForNotifications];
-    
-    
-	
+
+
+
 	// The following line was moved to the top of the routine to speed up document loading; Koch
-	// However, the portion of this routine which sets the font needs to wait until now. 
+	// However, the portion of this routine which sets the font needs to wait until now.
 	// [self setupFromPreferencesUsingWindowController:aController];
 	if ([SUD boolForKey:SaveDocumentFontKey] == YES)
 	{
@@ -1496,8 +2425,8 @@ if (! skipTextWindow) {
 
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(colorizeAll)
 												 name:@"NeedsForRecolorNotification" object:nil]; // added by Terada
-    
-    
+
+
 	[pdfView setImageType: self.documentType];
 
 	if (!fileIsTex) {
@@ -1585,9 +2514,9 @@ if (! skipTextWindow) {
             return;
 		}
 	}
-    
-    
-    
+
+
+
 	/* end of images */
 
 	if (_externalEditor)
@@ -1603,22 +2532,22 @@ if (! skipTextWindow) {
     self.backwardSyncPipe = nil;
     self.forwardSyncTask = nil;
     self.forwardSyncPipe = nil;
-    
+
 	// synctexTask = nil;
 	// synctexPipe = nil;
 
 	if (!_externalEditor) {
 		[self setupTags];
-        
+
         // the next line initializes tags and labels
         // this is only important in "text only mode" on the toolbar, since otherwise it happens automatically
-        
+
         if (  [SUD boolForKey:UseNewTagsAndLabelsKey])
             {
                 [self setupTags2];
                 [self setupLabels1];
             }
-     
+
 		myRange.location = 0;
 		myRange.length = 0;
 		[textView setSelectedRange: myRange];
@@ -1626,20 +2555,20 @@ if (! skipTextWindow) {
 			[textView setContinuousSpellCheckingEnabled:[SUD boolForKey:SpellCheckEnabledKey]];
             [textView setAutomaticSpellingCorrectionEnabled:[SUD boolForKey:AutomaticSpellingCorrectionEnabledKey]];
             }
-        
+
   		[textWindow setInitialFirstResponder: textView];
 		[textWindow makeFirstResponder: textView];
 	}
 
 	if (!fileIsTex)
 		return;
-    
+
     [self setTabBehavior: textWindow];
     [self setTabBehavior: self.pdfKitWindow];
     [self setTabBehavior: self.fullSplitWindow];
-    
+
     [self checkLogFile];
-    
+
 	// changed by mitsu --(J) Typeset command and (J++) Program popup button indicating Program name
 	defaultcommand = [SUD integerForKey:DefaultCommandKey];
 	switch (defaultcommand) {
@@ -1691,17 +2620,17 @@ if (! skipTextWindow) {
 	if ([self checkRootFile_forTask: RootForOpening])
 		return;
 
- 
-    
-    
+
+
+
 	imagePath = [[[[self fileURL] path] stringByDeletingPathExtension] stringByAppendingPathExtension:@"pdf"];
-    
+
     if (! [[NSFileManager defaultManager] fileExistsAtPath: imagePath])
         self.pdfKitWindow.noPdfFile = YES;
     else
         self.pdfKitWindow.noPdfFile = NO;
-    
-    
+
+
 	if (([[NSFileManager defaultManager] fileExistsAtPath: imagePath]) && (! optionKeyPressed)) {
 
  		PDFfromKit = YES;
@@ -1709,17 +2638,17 @@ if (! skipTextWindow) {
 		self.pdfLastModDate = [myAttributes objectForKey:NSFileModificationDate];
 
 		[self.myPDFKitView showWithPath: imagePath];
-        
+
  		// [myPDFKitView2 prepareSecond];
 		// [[myPDFKitView document] retain];
 		[self.myPDFKitView2 setDocument: [self.myPDFKitView document]];
 		[self.myPDFKitView2 showForSecond];
-		
+
 		[self.pdfKitWindow setRepresentedFilename: imagePath];
 		//[self.pdfKitWindow setTitle: [imagePath lastPathComponent]]; // removed by Terada
 		[self.pdfKitWindow setTitle: [[[self fileTitleName] stringByDeletingPathExtension] stringByAppendingPathExtension:@"pdf"]]; // added by Terada
 		[self fillLogWindowIfVisible];
-        
+
  	} else if (_externalEditor) {
 
 		PDFfromKit = YES;
@@ -1740,10 +2669,10 @@ if (! skipTextWindow) {
             [self allocateSyncScannerOld];
         else if (! self.useConTeXtSyncParser)
             [self allocateSyncScanner];
-        
+
         [self setLineBreakModeNew];
     }
-    
+
 
 	if (_externalEditor && ([SUD boolForKey: PdfRefreshKey] == YES)) {
 
@@ -1762,54 +2691,54 @@ if (! skipTextWindow) {
 				[self doTypeset:self];
 		}
 	}
-    
-  
+
+
 //    [self addTabbedWindows];
-    
+
     NSInteger value = [SUD integerForKey:OpenAsTabsKey];
-    
+
     if (([SUD boolForKey:SourceAndPreviewInSameWindowKey])  && (! _externalEditor) && PDFfromKit && (! self.useTabs) && (! self.useTabsWithFiles))
     {
         [self doMove:self];
         SEL aSelector = @selector(hideTextWindow);
         [self performSelector: aSelector withObject: self afterDelay: .1];
     }
-    
+
     else if ((atLeastSierra) && (value == 1) && (! [SUD boolForKey:SourceAndPreviewInSameWindowKey])  && (! _externalEditor) && PDFfromKit && (! self.useTabs) && (! self.useTabsWithFiles))
     {
         SEL aSelector = @selector(activateFrontWindow);
         [self performSelector: aSelector withObject: self afterDelay: .5];
     }
-    
+
     else
     {
         SEL aSelector = @selector(switchFrontWindow);
         [self performSelector: aSelector withObject: self afterDelay: .5];
-    
+
      if ((self.useTabs) || (self.useTabsWithFiles))
     {
         SEL bSelector = @selector(addTabbedWindows);
         [self performSelector: bSelector withObject: self afterDelay: 1];
     }
-    
+
     }
-    
+
 // Koch 2022 The following is a fix for Voice Over in the Preview Window on Monterey and Higher
-   
+
     if (self.activateVoiceOverFix)
     {
         SEL fixSelector = @selector(voiceOverFix);
         [self performSelector: fixSelector withObject: self afterDelay: 1];
     }
 
-    
+
 }
 
 - (void)voiceOverFix
 {
     MyPDFKitView *theView;
-    
-    
+
+
      if ([self fromKit])
         [[self pdfKitView] nextPage: self];
     if ([self fromKit])
@@ -1825,7 +2754,7 @@ if (! skipTextWindow) {
        }
    }
 
-    
+
 - (void)switchFrontWindow
    {
        if (([SUD boolForKey: OpenWithSourceInFrontKey]) && ([textWindow isVisible]))
@@ -1842,19 +2771,19 @@ if (! skipTextWindow) {
 // FIX RULER SCROLL
 - (void) redrawLineNumbers: sender // added by Terada (for Lion bug)
 {
-  
+
     return; // Fix jiggling at top and bottom of scroll; Koch Oct 12, 2018
-    
+
     if(!lineNumbersShowing) return;
-    
+
 	NSSize		newSize;
 	NSRect		theFrame;
-    
+
 
     if ((sender == textView1) && ([scrollView scrollerStyle] == NSScrollerStyleOverlay)) {
-    
+
     NSRect currentRect = [scrollView documentVisibleRect];
-    
+
     if(!NSEqualRects(currentRect, lastDocumentVisibleRect)){
         theFrame = [scrollView frame];
         newSize.width = theFrame.size.width;
@@ -1864,14 +2793,14 @@ if (! skipTextWindow) {
         [scrollView setFrameSize:newSize];
         lastDocumentVisibleRect = currentRect;
     }
-        
+
     }
-    
+
     if ((sender == textView2) && ([scrollView2 scrollerStyle] == NSScrollerStyleOverlay)) {
-    
+
     if (windowIsSplit) {
         NSRect currentRect2 = [scrollView2 documentVisibleRect];
-        
+
         if(!NSEqualRects(currentRect2, lastDocumentVisibleRect2)){
             theFrame = [scrollView2 frame];
             newSize.width = theFrame.size.width;
@@ -1882,11 +2811,11 @@ if (! skipTextWindow) {
             lastDocumentVisibleRect2 = currentRect2;
         }
     }
-        
+
     }
-    
+
     if ((sender == self.logTextView) && ([self.logScrollView scrollerStyle] == NSScrollerStyleOverlay)) {
-    
+
     NSRect currentRectConsole = [self.logScrollView documentVisibleRect];
     if(!NSEqualRects(currentRectConsole, lastDocumentVisibleRectConsole)){
         theFrame = [self.logScrollView frame];
@@ -1897,10 +2826,10 @@ if (! skipTextWindow) {
         [self.logScrollView setFrameSize:newSize];
         lastDocumentVisibleRectConsole = currentRectConsole;
     }
-        
+
     }
-    
-    
+
+
 }
 // END FIX RULER SCROLL
 
@@ -1929,25 +2858,25 @@ if (! skipTextWindow) {
 
 - (BOOL)prepareSavePanel:(NSSavePanel *)savePanel
 {
-    
+
 	NSView				*oldAccessoryView;
     NSInteger           theXMLIndex;
-    
+
     if (! [SUD boolForKey:EncodingMenuInSaveDialogKey])
         return YES;
-  
+
      if ((! atLeastHighSierra) || (NSAppKitVersionNumber >= 2299.31))
      {
         // Create the contents of the encoding menu on the fly
         [openSaveBox removeAllItems];
         [[TSEncodingSupport sharedInstance] addEncodingsToMenu:[openSaveBox menu] withTarget:0 action:0];
-        
+
         // Select active encoding
         [openSaveBox selectItemWithTag: _encoding];
-        
+
         // Get the active accessory view.
         oldAccessoryView = [savePanel accessoryView];
-        
+
         // We now loop over all items in the existing accessory view, and add them to
         // our new accessory view. This is apparently needed to get the file type popup
         // to show up -- but I can't seem to find any official documentation which
@@ -1959,10 +2888,10 @@ if (! skipTextWindow) {
          [savePanel setAccessoryView: openSaveView];
         return YES;
     }
-    
+
     else
-   
-        
+
+
     {
 
 	// Create the contents of the encoding menu on the fly
@@ -1984,10 +2913,10 @@ if (! skipTextWindow) {
     NSArray *theItemTitles = [theButton itemTitles];
     [saveFormatMenu removeAllItems];
     NSInteger i;
-   
+
     for (i = 0; i < [theItems count]; i++)
         [saveFormatMenu addItemWithTitle: theItemTitles[i]];
-        
+
     NSInteger theIndex = [theButton indexOfSelectedItem];
     theXMLIndex = XMLINDEX;
     if ((self.fileIsXML) && (self.fileURL == nil))
@@ -1995,11 +2924,11 @@ if (! skipTextWindow) {
     else
         [saveFormatMenu selectItemAtIndex: theIndex];
     [saveFormatMenu synchronizeTitleAndSelectedItem];
-    
+
     // NSArray *myFileTypes = [NSArray arrayWithObject: @"sty"];
     // savePanel.allowedFileTypes = myFileTypes;
     // [savePanel setRequiredFileType:@"sty"];
-    
+
      /*
     for (i = 0; i < [theItems count]; i++)
     {
@@ -2009,14 +2938,14 @@ if (! skipTextWindow) {
     // saveFormatMenu.target = theButton.target;
     // saveFormatMenu.action = theButton.action;
     */
-    
+
    // [saveFormatLabel takeStringValueFrom: theLabel];
     [savePanel setAccessoryView: openSaveViewHS]; //weird stuff!
     return YES;
 
     }
-    
- 
+
+
 }
 
 - (IBAction)setSaveExtension: sender
@@ -2046,7 +2975,7 @@ in other code when an external editor is being used. */
 	NSArray         *otherExtensions;
 	NSEnumerator    *arrayEnumerator;
 	NSString		*stringObject;
-	
+
 	if (([extension isEqualToString: @"tex"]) || ([extension isEqualToString: @"TEX"])
         || ([extension isEqualToString: @"html"])
         || ([extension isEqualToString: @"HTML"])
@@ -2061,7 +2990,7 @@ in other code when an external editor is being used. */
 		|| ([extension isEqualToString: @""]) || ([extension isEqualToString: @"mp"])
 		|| ([extension isEqualToString: @"mf"])
 		|| ([extension isEqualToString: @"bib"])
-		|| ([extension isEqualToString: @"htx"]) || ([extension isEqualToString: @"HTX"]) 
+		|| ([extension isEqualToString: @"htx"]) || ([extension isEqualToString: @"HTX"])
 		|| ([extension isEqualToString: @"sk"]) || ([extension isEqualToString: @"skt"])
 		|| ([extension isEqualToString: @"htx"])
 		|| ([extension isEqualToString: @"ly"])
@@ -2084,13 +3013,13 @@ in other code when an external editor is being used. */
         || ([extension isEqualToString: @"typ"])
         )
 		return YES;
-		
+
 	otherExtensions = [SUD stringArrayForKey: OtherTeXExtensionsKey];
 	arrayEnumerator = [otherExtensions objectEnumerator];
-	while ((stringObject = [arrayEnumerator nextObject])) 
+	while ((stringObject = [arrayEnumerator nextObject]))
 		if ([extension isEqualToString:stringObject])
 				return YES;
-			
+
 	return NO;
 }
 
@@ -2099,10 +3028,10 @@ in other code when an external editor is being used. */
 {
 	if (
 		([extension isEqualToString: @"dvi"]) || ([extension isEqualToString: @"ps"])
-		|| ([extension isEqualToString: @"eps"]) || ([extension isEqualToString: @"png"]) 
+		|| ([extension isEqualToString: @"eps"]) || ([extension isEqualToString: @"png"])
 		|| ([extension isEqualToString: @"tif"]) || ([extension isEqualToString: @"tiff"])
 		|| ([extension isEqualToString: @"jpg"]) || ([extension isEqualToString: @"JPG"])
-		|| ([extension isEqualToString: @"jpeg"]) 
+		|| ([extension isEqualToString: @"jpeg"])
 		)
 		return NO;
 	else
@@ -2111,7 +3040,7 @@ in other code when an external editor is being used. */
 
 
 // NOTE "data of Type" is actually never called!
-    
+
 // - (NSData *)dataRepresentationOfType:(NSString *)aType {
 - (NSData *)dataOfType: (NSString *)typeName error: (NSError **)outError {
 	NSRange             encodingRange, newEncodingRange, myRange, theRange;
@@ -2120,12 +3049,12 @@ in other code when an external editor is being used. */
 	BOOL                done;
 	NSInteger                 linesTested, offset;
 	NSUInteger            start, end;
-    
+
 	// FIXME: Unify this with the code in readFromFile:
 	if ((GetCurrentKeyModifiers() & optionKey) == 0) {
 		text = [_textStorage string];
 		length = [text length];
-        
+
 		done = NO;
 		linesTested = 0;
 		myRange.location = 0;
@@ -2178,14 +3107,14 @@ in other code when an external editor is being used. */
 		if( [SUD boolForKey:ptexUtfOutputEnabledKey] &&
 				[[TSEncodingSupport sharedInstance] ptexUtfOutputCheck: [[_textStorage string] normalizedStringWithModifiedNFC] withEncoding: _encoding] ) { // modified by Terada
 			return [[TSEncodingSupport sharedInstance] ptexUtfOutput: textView withEncoding: _encoding];
-		} else 
+		} else
 			return [[[_textStorage string] normalizedStringWithModifiedNFC] dataUsingEncoding: _encoding allowLossyConversion:YES]; // modified by Terada
 		}
 	else {
 		if( [SUD boolForKey:ptexUtfOutputEnabledKey] &&
 		   [[TSEncodingSupport sharedInstance] ptexUtfOutputCheck: [_textStorage string]  withEncoding: _encoding] ) { // original code
 				return [[TSEncodingSupport sharedInstance] ptexUtfOutput: textView withEncoding: _encoding];
-		} else 
+		} else
 			return [[_textStorage string]  dataUsingEncoding: _encoding allowLossyConversion:YES]; // original code
 	}
 }
@@ -2200,21 +3129,21 @@ in other code when an external editor is being used. */
     NSInteger aLength;
     NSArray   *names;
     NSInteger i, size;
-    
+
     checkRange.location = tabRange.location + tabRange.length;
     checkRange.length = [line length] - checkRange.location;
     theRest = [line substringWithRange:checkRange];
     startRange = [theRest rangeOfString: @"("];
     if (startRange.location == NSNotFound)
         return;
-    
+
     checkRange.location = startRange.location + 1;
     aLength = [theRest length] - startRange.location - 1;
     if (aLength <= 0)
         return;
     checkRange.length = aLength;
     theRest = [theRest substringWithRange: checkRange];
-    
+
     startRange = [theRest rangeOfString: @")"];
     if (startRange.location == NSNotFound)
         return;
@@ -2224,7 +3153,7 @@ in other code when an external editor is being used. */
         return;
     checkRange.length = aLength;
     theRest = [theRest substringWithRange: checkRange];
-    
+
     names = [theRest componentsSeparatedByString:@","];
     size = [names count];
     if (size > MAXNUMOFTABS)
@@ -2235,8 +3164,8 @@ in other code when an external editor is being used. */
         aName = [aName stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceCharacterSet]];
         self.includeFileShortNames[i] = aName;
     }
-    
-    
+
+
 }
 
 
@@ -2248,25 +3177,25 @@ in other code when an external editor is being used. */
 	NSInteger           linesTested, offset;
     NSInteger           i;
 	NSStringEncoding	theEncoding;
-    
+
     // theEncoding = [[TSEncodingSupport sharedInstance] defaultEncoding]; this error broke the encoding menu in the save panel
 	theEncoding = _encoding;
 	firstBytes = [[NSString alloc] initWithData:theData encoding:NSISOLatin9StringEncoding];
-	
+
 	// First check for new spelling language
-	
+
 	length = [firstBytes length];
 	done = NO;
 	linesTested = 0;
 	myRange.location = 0;
 	myRange.length = 1;
-	
+
 	while ((myRange.location < length) && (!done) && (linesTested < 20)) {
 		[firstBytes getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
 		myRange.location = end;
 		myRange.length = 1;
 		linesTested++;
-		
+
 		// FIXME: Simplify the following code
 		theRange.location = start; theRange.length = (end - start);
 		testString = [firstBytes substringWithRange: theRange];
@@ -2274,7 +3203,7 @@ in other code when an external editor is being used. */
 		offset = 18;
 		if (spellcheckRange.location == NSNotFound) {
 			spellcheckRange = [testString rangeOfString:@"% !TEX spellcheck ="];
-			
+
 			offset = 19;
 		}
 		if (spellcheckRange.location != NSNotFound) {
@@ -2285,23 +3214,23 @@ in other code when an external editor is being used. */
 				spellcheckString = [[testString substringWithRange: spellcheckRange]
 									stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]];
 				// NSLog(spellcheckString);
-                
+
                 self.automaticSpelling = NO;
                 self.spellLanguage = spellcheckString;
                 [self resetSpelling];
-                
+
               /*
                 NSSpellChecker *theChecker = [NSSpellChecker sharedSpellChecker];
                 if ([theChecker setLanguage:spellcheckString])
                     {
                     self.spellLanguage = spellcheckString;
                     self.automaticSpelling = NO;
-                                                  
+
                     [theChecker setAutomaticallyIdentifiesLanguages:NO];
                     }
                */
-                 
-                
+
+
                 /*
 				NSSpellChecker *theChecker = [NSSpellChecker sharedSpellChecker];
                 if (! specialWindowOpened) {
@@ -2314,7 +3243,7 @@ in other code when an external editor is being used. */
                     [SUD setBool: spellingAutomatic forKey: SpellingAutomaticLanguageKey];
                     [SUD synchronize];
                     }
-                
+
                 if ([theChecker setLanguage:spellcheckString])
                 {
                     [theChecker setAutomaticallyIdentifiesLanguages:NO];
@@ -2325,21 +3254,21 @@ in other code when an external editor is being used. */
             }
 		}
 	}
-    
-    
+
+
     length = [firstBytes length];
- 
+
     done = NO;
     linesTested = 0;
     myRange.location = 0;
     myRange.length = 1;
-    
+
     while ((myRange.location < length) && (!done) && (linesTested < 20)) {
         [firstBytes getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
         myRange.location = end;
         myRange.length = 1;
         linesTested++;
-        
+
         // FIXME: Simplify the following code
         theRange.location = start; theRange.length = (end - start);
         testString = [firstBytes substringWithRange: theRange];
@@ -2348,20 +3277,20 @@ in other code when an external editor is being used. */
             self.pdfSinglePage = YES;
          }
     }
-    
+
     done = NO;
     linesTested = 0;
     myRange.location = 0;
     myRange.length = 1;
-    
+
     self.numberingCorrection = 0;
-    
+
     while ((myRange.location < length) && (!done) && (linesTested < 20)) {
         [firstBytes getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
         myRange.location = end;
         myRange.length = 1;
         linesTested++;
-        
+
         // FIXME: Simplify the following code
         theRange.location = start; theRange.length = (end - start);
         testString = [firstBytes substringWithRange: theRange];
@@ -2410,32 +3339,32 @@ in other code when an external editor is being used. */
                     }
                 else
                     self.numberingCorrection = 0;
-                
+
             }
             else
                 self.automaticCorrection = YES;
-        
+
     }
-        
+
     if (self.useConTeXtSyncParser)
         self.useOldSyncParser = NO;
 
 
-    
+
     if (atLeastSierra)
     {
         done = NO;
         linesTested = 0;
         myRange.location = 0;
         myRange.length = 1;
-        
+
          while ((myRange.location < length) && (!done) && (linesTested < 20)) {
             [firstBytes getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
             myRange.location = end;
             myRange.length = 1;
             linesTested++;
-     
-   
+
+
             theRange.location = start; theRange.length = (end - start);
             testString = [firstBytes substringWithRange: theRange];
             tabRange = [testString rangeOfString:@"% !TEX useTabsWithFiles"];
@@ -2457,10 +3386,10 @@ in other code when an external editor is being used. */
                     }
                 }
         }
-        
+
     }
-    
-	
+
+
 	// FIXME: Unify this with the code in dataRepresentationOfType:
 	if ((GetCurrentKeyModifiers() & optionKey) == 0) {
 		length = [firstBytes length];
@@ -2482,7 +3411,7 @@ in other code when an external editor is being used. */
 			offset = 16;
 			if (encodingRange.location == NSNotFound) {
 				encodingRange = [testString rangeOfString:@"% !TEX encoding ="];
-				
+
 				offset = 17;
 				}
 			if (encodingRange.location != NSNotFound) {
@@ -2509,10 +3438,10 @@ in other code when an external editor is being used. */
 			}
 		}
 	}
-	
+
 //	[firstBytes release];
-	
-    
+
+
 	return theEncoding;
 }
 
@@ -2526,7 +3455,7 @@ in other code when an external editor is being used. */
 	current version of TeXShop detects this, but it often just notices
 	that the file was pulled away under it's feet and then either
 	closes the document or replaces it by a blank.
- 
+
 	''I propose to introduce a small latency between the moment TeXShop
 	gets notified of the file's deletion and the moment it checks for its status
 	so that it correctly handles changes to the file made in that manner.
@@ -2536,26 +3465,26 @@ in other code when an external editor is being used. */
 
 
 - (void)watchFile:(NSString*)fileName {
-    
+
       if (! activateBauerPatch)
           return;
-    
+
      //   if ( ! [SUD boolForKey:WatchServerKey] )
      //       return;
-    
+
      // if (![[self class] autosavesInPlace])
      //      return;
-    
+
         dispatch_queue_t queue = dispatch_get_main_queue();
         int fildes = open([fileName UTF8String], O_EVTONLY);
-    
+
         [self cancelWatchFile];
-    
+
         dispatch_source = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE,fildes,
                                             DISPATCH_VNODE_DELETE | DISPATCH_VNODE_WRITE | DISPATCH_VNODE_REVOKE,
                                             queue);
         __block TSDocument *blockSelf = self;
-    
+
        dispatch_source_set_event_handler(dispatch_source, ^ {
                 if ([blockSelf hasUnautosavedChanges]) {
                         [blockSelf cancelWatchFile];
@@ -2577,21 +3506,21 @@ in other code when an external editor is being used. */
                                             [blockSelf close];
                                        }
                         }
-        
+
            });
-        
+
         dispatch_source_set_cancel_handler(dispatch_source, ^ {
                 close(fildes);
             });
-        
+
         dispatch_resume(dispatch_source);
     }
 
 - (void)cancelWatchFile {
-    
+
         if ( ! [SUD boolForKey:WatchServerKey] )
             return;
-    
+
         if (dispatch_source != NULL) {
                 dispatch_source_cancel(dispatch_source);
               //  dispatch_release(dispatch_source);
@@ -2608,26 +3537,26 @@ in other code when an external editor is being used. */
     BOOL            done, found;
     NSInteger       linesTested;
     NSRange         myRange, theRange, parserRange, numberingRange;
-    
+
     self.numberingCorrection = 0;
     self.automaticCorrection = NO;
-    
+
     firstBytes = [self.textView string];
-    
+
     length = [firstBytes length];
- 
+
     done = NO;
     found = NO;
     linesTested = 0;
     myRange.location = 0;
     myRange.length = 1;
-    
+
     while ((myRange.location < length) && (!done) && (linesTested < 20)) {
         [firstBytes getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
         myRange.location = end;
         myRange.length = 1;
         linesTested++;
-        
+
         theRange.location = start; theRange.length = (end - start);
         testString = [firstBytes substringWithRange: theRange];
         // parserRange = [testString rangeOfString:@"% !TEX numberingCorrection Automatic"];
@@ -2645,9 +3574,9 @@ in other code when an external editor is being used. */
                     found = YES;
                 }
             }
-            
+
     }
-    
+
     if (! found)
         self.automaticCorrection = YES;
 }
@@ -2656,13 +3585,13 @@ in other code when an external editor is being used. */
 // - (BOOL)readFromFile:(NSString *)fileName ofType:(NSString *)type {
 	NSData				*myData;
 	NSUInteger		theLength;
-	
+
 	if ([self doNotReadSource])
 		return YES;
 
 	myData = [NSData dataWithContentsOfURL:absoluteURL];
 	_encoding = _tempencoding = [self dataEncoding: myData];
-    
+
 /*
 
 	// FIXME: Unify this with the code in dataRepresentationOfType:
@@ -2710,7 +3639,7 @@ in other code when an external editor is being used. */
 
 		[firstBytes release];
 	}
-	
+
 */
 
 //ULRICH BAUER PATCH
@@ -2724,11 +3653,11 @@ in other code when an external editor is being used. */
 		showBadEncodingDialog = YES;
 		content = [[NSString alloc] initWithData:myData encoding:NSISOLatin9StringEncoding] ;
     }
-    
+
         if (content)
         {
 
-    
+
 		// zenitani 1.35 (A) -- normalizing newline character for regular expression
 		if ([SUD boolForKey:ConvertLFKey]) {
 			content = [OGRegularExpression replaceNewlineCharactersInString:content
@@ -2741,7 +3670,7 @@ in other code when an external editor is being used. */
 			content = [utfRegex replaceAllMatchesInString: content delegate:self
 						replaceSelector:@selector(decodeUtfStyFormat:contextInfo:) contextInfo:nil];
 		}
-		
+
 		theLength = [content length];
 		// NSLog([NSString stringWithFormat:@"%d", theLength]);
 		if (theLength > 100000) {
@@ -2749,9 +3678,9 @@ in other code when an external editor is being used. */
 			isLoading = YES;
 			firstTime = YES;
 			}
-		
+
 		[[_textStorage mutableString] setString:content];
-	
+
 		return YES;
 	}
 else {
@@ -2764,7 +3693,7 @@ else {
 //ULRICH BAUER PATCH
     [self cancelWatchFile];
 //END PATCH
-    
+
 	BOOL		result;
 
 	result = [super writeToURL: absoluteURL ofType:typeName error:outError];
@@ -2775,11 +3704,11 @@ else {
 		// dirty tricks to get acceptable behavior.
 		[textView breakUndoCoalescing];
 	}
-    
+
 //ULRICH BAUER PATCH
     [self watchFile: [absoluteURL path]];
 //EMD PATCH
-    
+
 	return result;
 }
 
@@ -2795,11 +3724,11 @@ else {
 
 - (BOOL)revertToContentsOfURL:(NSURL *)absoluteURL ofType:(NSString *)typeName error:(NSError **)outError
 {
-    
+
 //ULRICH BAUER PATCH
     [self cancelWatchFile];
 //END PATCH
-    
+
 	BOOL	value;
 
 	value = [super revertToContentsOfURL:absoluteURL ofType:typeName error:outError];
@@ -2807,11 +3736,11 @@ else {
 		[self setupTags];
 		[self colorizeAll];
 	}
-	
+
 	// FIXME: Is the following even needed? Changin the textstorage should trigger a redraw anyway,
 	// shouldn't it? But if we do have to call this, shouldn't we also do the same for textView2?
 	[textView setNeedsDisplayInRect: [textView bounds]];
-	
+
 	return value;
 }
 
@@ -2822,7 +3751,7 @@ else {
 //END PATCH
 
 - (void)resetSpelling {
-    
+
     if ([SUD boolForKey: originalSpellingKey])
         return;
 	NSSpellChecker *theChecker = [NSSpellChecker sharedSpellChecker];
@@ -2831,7 +3760,7 @@ else {
 }
 
 - (void)resignSpelling {
-    
+
     if ([SUD boolForKey: originalSpellingKey])
         return;
     NSSpellChecker *theChecker = [NSSpellChecker sharedSpellChecker];
@@ -2843,7 +3772,7 @@ else {
 
 
 
-// - (void) printDocumentWithSettings: (NSDictionary :)printSettings showPrintPanel:(BOOL)showPrintPanel delegate:(id)delegate 
+// - (void) printDocumentWithSettings: (NSDictionary :)printSettings showPrintPanel:(BOOL)showPrintPanel delegate:(id)delegate
 // 	didPrintSelector:(SEL)didPrintSelector contextInfo:(void *)contextInfo
 - (void)printShowingPrintPanel:(BOOL)flag
 {
@@ -2855,11 +3784,11 @@ else {
 	NSInteger				result;
     NSString        *fileName;
     NSPrintPanel    *printPanel;
-	
+
     fileName = [[self fileURL] path];
-    
+
 	if (self.documentType == isTeX) {
-		
+
 		if (!_externalEditor) {
 			theSource = [_textStorage string];
 			if ([self checkMasterFile:theSource forTask:RootForPrinting])
@@ -2867,14 +3796,14 @@ else {
 			if ([self checkRootFile_forTask:RootForPrinting])
 				return;
 		}
-		
+
 		imagePath = [[fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"pdf"];
 	}
 	else if (self.documentType == isPDF)
 		imagePath = [[fileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"pdf"];
 	else
 		imagePath = fileName;
-	
+
 	aRep = nil;
 	if ([[NSFileManager defaultManager] fileExistsAtPath: imagePath]) {
 		if ((self.documentType == isTeX) || (self.documentType == isPDF))
@@ -2884,7 +3813,7 @@ else {
 		if (aRep == nil)
 			return;
 		printView = [[TSPrintView alloc] initWithImageRep: aRep];
-        
+
         if ([aRep isKindOfClass: [NSPDFImageRep class]])
             {
             NSRect bounds = [aRep bounds];
@@ -2893,16 +3822,16 @@ else {
             else
                 [[self printInfo] setOrientation: NSPortraitOrientation];
              }
-        
+
  		printOperation = [NSPrintOperation printOperationWithView:printView printInfo: [self printInfo]];
-        
-        
+
+
   // Dirk-Willem van Gulik: code to add job title to print job
          // try to set some sensible job title - and try to improve on it by
         // checking if there is a /title in the PDF.
         //
         [printOperation setJobTitle:[[imagePath lastPathComponent] stringByDeletingPathExtension]];
-        
+
 		if ((_documentType == isTeX) || (_documentType == isPDF)) {
             NSData * raw = [aRep PDFRepresentation];
 #if (__MAC_OS_X_VERSION_MIN_REQUIRED >= 1040)
@@ -2919,7 +3848,7 @@ else {
             for(const void *endptr, * ptr = [raw bytes] + MAX(0, [raw length] - 16 * 1024);
                 ptr < [raw bytes] + [raw length] - MAX(sizeof(TITLESIG), sizeof(SUBJCSIG)) - 4;
                 ptr++) {
-                
+
                 if ((*((char*)ptr) == '/') && (bcmp(ptr,TITLESIG,sizeof(TITLESIG)-1) == 0) && ((endptr = index(ptr, ')')) != NULL)) {
                     [printOperation setJobTitle:[[NSString alloc] initWithBytes:ptr+sizeof(TITLESIG)-1
                                                                          length:endptr-ptr-sizeof(TITLESIG)+1
@@ -2935,26 +3864,26 @@ else {
             }
 #endif
         }
-        
+
  // Dirk-Willem van Gulik: end of job title addition
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
+
+
+
+
+
+
+
+
+
+
+
         [printOperation setShowsPrintPanel:flag];
         [printOperation setShowsProgressPanel:flag];
         printPanel = [printOperation printPanel];
         [printPanel setOptions:([printPanel options] | NSPrintPanelShowsOrientation | NSPrintPanelShowsScaling | NSPrintPanelShowsPaperSize)];
        //  [printPanel setOptions: (NSPrintPanelShowsPreview | NSPrintPanelShowsOrientation | NSPrintPanelShowsPageRange) ]; //( NSPrintPanelShowsPageSetupAccessory & [printPanel options])]; // NSPrintPanelShowsOrientation)];
-        
+
 		[printOperation runOperation];
 //		[printView release];
 	} else if (self.documentType == isTeX)
@@ -2976,14 +3905,14 @@ else {
         self.annotationsExist = NO;
         [self callSaveAnnotations];
         }
-    
+
     [self.myPDFKitView breakConnections];
     [self.myPDFKitView2 breakConnections];
-	
+
 	[self.tagTimer invalidate];
 //	[self.tagTimer release];
 	self.tagTimer = nil;
-    
+
     if ((self.pdfActivity != nil) && ([[NSProcessInfo processInfo] respondsToSelector: @selector(endActivity:)]))
         [[NSProcessInfo processInfo] endActivity: self.pdfActivity];
     self.pdfActivity = nil;
@@ -3006,7 +3935,7 @@ else {
     [[self getStringWindow] close];
     [[NSColorPanel sharedColorPanel] close];
     [[NSFontPanel sharedFontPanel] close];
-	
+
 	/* The next line fixes a crash bug in Jaguar; see notifyActiveTextWindowClosed for
 	a description. */
 	[[TSWindowManager sharedInstance] notifyActiveTextWindowClosed];
@@ -3016,10 +3945,11 @@ else {
 		[[GlobalData sharedGlobalData].CommandCompletionPath stringByStandardizingPath]])
 		g_canRegisterCommandCompletion = YES;
  	// end mitsu 1.29
-    
+
 //ULRICH BAUER PATCH
     [self cancelWatchFile];
 //END PATCH
+    [self invalidateCompletionConnection];
 
 	[super close];
 }
@@ -3028,7 +3958,7 @@ else {
                          originalContentsURL:(NSURL *)absoluteOriginalContentsURL error:(NSError **)outError
 {
 	NSDictionary	*myDictionary;
-    
+
 	myDictionary = [super fileAttributesToWriteToURL: absoluteURL ofType: typeName
                                     forSaveOperation: saveOperation originalContentsURL:absoluteOriginalContentsURL error:outError];
     return myDictionary;
@@ -3045,7 +3975,7 @@ else {
 - (void)saveDocument: (id)sender
 {
 	[super saveDocument: sender];
-  
+
 	// if CommandCompletion list is being saved, reload it.
 	if (!fileIsTex && [[[self fileURL] path] isEqualToString:
 				[[GlobalData sharedGlobalData].CommandCompletionPath stringByStandardizingPath]])
@@ -3053,12 +3983,12 @@ else {
          //   NSLog(@"AHA, WRITING");
            // [[NSApp delegate] finishCommandCompletionConfigure];
             // write is immediately followed by read and these can occur in the wrong order; so ...
-            
+
           //  [GlobalData sharedGlobalData].CommandCompletionPath = CommandCompletionPathRegular;
           //  [self reReadCommandCompletionData];
-            
+
            [(TSAppDelegate *)[NSApp delegate] performSelector:@selector(reReadCommandCompletionData) withObject: nil afterDelay:2.0];
-            
+
          //  [(TSAppDelegate *)[NSApp delegate] performSelector:@selector(finishCommandCompletionConfigure) withObject: nil afterDelay:2.0]; //0.2
         }
      if(showFullPath) [textWindow performSelector:@selector(refreshTitle) withObject:nil afterDelay:0.2]; // added by Terada
@@ -3080,7 +4010,7 @@ else {
 	NSMutableArray  *args;
 	NSRange			theRange;
 	BOOL			doSelection;
-	
+
 	[statisticsPanel setTitle:[self displayName]];
 	[statisticsPanel makeKeyAndOrderFront:self];
 
@@ -3096,13 +4026,13 @@ else {
 		[statString writeToFile:myFileName atomically:YES encoding:_encoding error: NULL];
 		doSelection = YES;
 	}
-	
+
 	if (! doSelection) {
 		myFileName = [[self fileURL] path];
 		if (! myFileName)
 			return;
 		}
-	
+
 	if (self.detexTask != nil) {
 		[self.detexTask terminate];
 		myDate = [NSDate date];
@@ -3112,7 +4042,7 @@ else {
 		self.detexTask = nil;
 		self.detexPipe = nil;
 	}
-	
+
 	self.detexTask = [[NSTask alloc] init];
 	[self.detexTask setCurrentDirectoryPath: [myFileName stringByDeletingLastPathComponent]];
 	[self.detexTask setEnvironment: [self environmentForSubTask]];
@@ -3138,7 +4068,7 @@ else {
 //			[self.detexTask release];
 		self.detexTask = nil;
 	}
-	
+
 }
 
 - (void)saveForStatistics: (NSDocument *)doc didSave:(BOOL)didSave contextInfo:(void *)contextInfo
@@ -3149,7 +4079,7 @@ else {
 - (void)updateStatistics: sender
 {
 	SEL		saveForStatistics;
-	
+
 	NSArray *theRanges = [textView selectedRanges];
 	NSValue *theValue = [theRanges objectAtIndex:0];
 	NSRange theRange = [theValue rangeValue];
@@ -3226,17 +4156,17 @@ else {
 	fm       = [NSFileManager defaultManager];
 	basePath = [EnginePath stringByStandardizingPath];
 	fileList = [fm contentsOfDirectoryAtPath: basePath error:NULL];
-    
-    
+
+
     sortedList = [fileList sortedArrayUsingSelector:@selector(caseInsensitiveCompare:)];
-    
+
  //   [programButton addItemWithTitle: @"---"];
  //   [sprogramButton addItemWithTitle: @"---"];
  //   [programButtonEE addItemWithTitle: @"---"];
-    
-    
-    
-    
+
+
+
+
 	for (i=0; i < [sortedList count]; i++) {
 		title = [sortedList objectAtIndex: i];
 		path  = [basePath stringByAppendingPathComponent: title];
@@ -3284,13 +4214,13 @@ else {
 	NSSize		newSize;
 	NSRect		theFrame;
 	NSRange		selectedRange;
-    
+
     if ([NSEvent modifierFlags ] & NSEventModifierFlagOption)
         [splitView setVertical: YES];
     else
         [splitView setVertical: NO];
-    
-     
+
+
 	selectedRange = [textView selectedRange];
 	newSize.width = 100;
 	newSize.height = 100;
@@ -3351,40 +4281,40 @@ else {
  //                                                name:NSApplicationWillTerminateNotification object:nil];
 
 
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(annotationPanelWillClose:) name:NSWindowWillCloseNotification  object:annotationChoices];
-    
+
     // register for notifications when the document window becomes key so we can remember which window was
     // the frontmost. This is needed for the preferences.
 
-   
+
 if ( ! skipTextWindow) {
    // [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateLabelsAndTagsAtClick:) name:NSPopUpButtonWillPopUpNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(TagsAtClick2:) name:NSMenuDidBeginTrackingNotification object:[tags menu]];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(TagsAtClick2:) name:NSMenuDidBeginTrackingNotification object:[stags menu]];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(LabelsAtClick2:) name:NSMenuDidBeginTrackingNotification object:[labels menu]];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(LabelsAtClick2:) name:NSMenuDidBeginTrackingNotification object:[slabels menu]];
-    
+
     //NSMenu *tagsMenu = [[[NSApp mainMenu] itemWithTitle:
     //                     NSLocalizedString(@"Tags", @"Tags")] submenu];
     // if ([[NSUserDefaults standardUserDefaults] boolForKey:TagMenuInMenuBarKey])
     //    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(TagsAtClick3:) name:NSMenuDidBeginTrackingNotification
     //                                             object:tagsMenu];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(textWindowDidBecomeKey:) name:NSWindowDidBecomeKeyNotification object:textWindow];
 	[[NSNotificationCenter defaultCenter] addObserver:[TSLaTeXPanelController sharedInstance] selector:@selector(textWindowDidBecomeKey:) name:NSWindowDidBecomeKeyNotification object:textWindow];
 	[[NSNotificationCenter defaultCenter] addObserver:[TSMatrixPanelController sharedInstance] selector:@selector(textWindowDidBecomeKey:) name:NSWindowDidBecomeKeyNotification object:textWindow];
 	[[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(documentWindowWillClose:) name:NSWindowWillCloseNotification object:textWindow];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(annotationPanelWillClose:) name:NSWindowWillCloseNotification  object:annotationChoices];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(textSplitWindowDidBecomeKey:) name:NSWindowDidBecomeKeyNotification object:fullSplitWindow];
 	[[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(documentSplitWindowWillClose:) name:NSWindowWillCloseNotification object:fullSplitWindow];
     [[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(documentSplitWindowDidResignKey:) name:NSWindowDidResignKeyNotification object:fullSplitWindow];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(HtmlWindowDidBecomeKey:) name:NSWindowDidBecomeKeyNotification object:self.htmlWindow];
     [[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(HtmlWindowWillClose:) name:NSWindowWillCloseNotification object:self.htmlWindow];
     [[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(HtmlWindowDidResignKey:) name:NSWindowDidResignKeyNotification object:self.htmlWindow];
-    
+
 // added by mitsu --(J+) check mark in "Typeset" menu
 	[[NSNotificationCenter defaultCenter] addObserver:[TSWindowManager sharedInstance] selector:@selector(documentWindowDidResignKey:) name:NSWindowDidResignKeyNotification object:textWindow];
 }
@@ -3402,60 +4332,60 @@ if ( ! skipTextWindow) {
 
 
 	// register for notification when the document font changes in preference
-    
+
 if ( ! skipTextWindow)
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setDocumentFontBoth:) name:DocumentFontChangedNotification object:nil];
-	
+
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setConsoleFontFromPreferences:) name:ConsoleFontChangedNotification object:nil];
-	
+
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setConsoleBackgroundColorFromPreferences:) name:ConsoleBackgroundColorChangedNotification object:nil];
-	
+
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setConsoleForegroundColorFromPreferences:) name:ConsoleForegroundColorChangedNotification object:nil];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setPreviewBackgroundColorFromPreferences:) name:PreviewBackgroundColorChangedNotification object:nil];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(changeColorsFromNotification:)
           name:SourceColorChangedNotification object:nil];
-	
+
 
 
 if ( ! skipTextWindow) {
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setBackgroundColorBoth:) name:SourceBackgroundColorChangedNotification object:nil];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setTextColorBoth:) name:SourceTextColorChangedNotification object:nil];
-	
+
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(revertDocumentFont:) name:DocumentFontRevertNotification object:nil];
 
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(rememberFont:) name:DocumentFontRememberNotification object:nil];
-	
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setCommandCompletionChar:) name:CommandCompletionCharNotification object:nil]; 
+
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(setCommandCompletionChar:) name:CommandCompletionCharNotification object:nil];
 
 	// register for notification when the syntax coloring changes in preferences
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reColor:) name:DocumentSyntaxColorNotification object:nil];
 
 	// register for notification when auto completion changes in preferences
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(changePrefAutoComplete:) name:DocumentAutoCompleteNotification object:nil];
-	
+
 	// register for notification when bibdesk completion changes in preferences
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(changePrefBibDeskComplete:) name:DocumentBibDeskCompleteNotification object:nil];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(doCompletion:)
                                                  name:@"completionpanel" object:nil];
-    
+
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(doMatrix:)
 												 name:@"matrixpanel" object:nil]; // Matrix addition by Jonas
-    
+
     // added by mitsu --(D) reset tags when the encoding is switched
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(resetTagsMenu:)
                                                  name:@"ResetTagsMenuNotification" object:nil];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(resetTagsMenu:)
                                                  name:@"NSUndoManagerDidRedoChangeNotification" object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(resetTagsMenu:)
                                                  name:@"NSUndoManagerDidUndoChangeNotification" object:nil];
-    
+
 	// Register for notifcations when the text view(s) get scrolled, so that syntax highlighting can be updated.
 	[[NSNotificationCenter defaultCenter] addObserver:self
 											 selector:@selector(viewBoundsDidChange:)
@@ -3465,7 +4395,7 @@ if ( ! skipTextWindow) {
 											 selector:@selector(viewBoundsDidChange:)
 												 name:NSViewBoundsDidChangeNotification
 											   object:[scrollView2 contentView]];
-    
+
 	// Register for resizing
 	[[NSNotificationCenter defaultCenter] addObserver:self
 											 selector:@selector(viewFrameDidChange:)
@@ -3483,11 +4413,11 @@ if ( ! skipTextWindow) {
 	// notifications for pdftex and pdflatex
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(checkATaskStatus:)
 		name:NSTaskDidTerminateNotification object:nil];
-    
+
     // notification for scrap
 	// [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(checkScrapTaskStatus:)
     //                                              name:NSTaskDidTerminateNotification object:nil];
-		
+
 //	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(writeTexOutput:)
 //		name:NSFileHandleReadCompletionNotification object:nil];
 
@@ -3517,7 +4447,7 @@ if ( ! skipTextWindow) {
 	}else{
 		newFrame = NSMakeRect(NSMinX(activeWindowFrame) + 20, NSMinY(activeWindowFrame) + 20, NSWidth(activeWindowFrame), NSHeight(activeWindowFrame) - 40);
 	}
-		
+
 	[targetWindow setFrame:newFrame display:YES];
 }
 */
@@ -3551,7 +4481,7 @@ if ( ! skipTextWindow) {
     BOOL     result;
     float    floatValue, x, y, temp, LargeArea, LargePDFArea, SmallArea, SmallPDFArea, MainDisplayArea;
     NSString *docWindowString, *pdfWindowString, *portableDocWindowString, *portablePDFWindowString, *htmlWindowString;
-    
+
     if ( HtmlWindowPosFixed == [SUD integerForKey:HtmlWindowPosModeKey] ) {
         htmlWindowString = [SUD stringForKey:HtmlWindowFixedPosKey];
         if (htmlWindowString) {
@@ -3568,8 +4498,8 @@ if ( ! skipTextWindow) {
             }
       }
 
-    
-   
+
+
     if ( DocumentWindowPosFixed == [SUD integerForKey:DocumentWindowPosModeKey] ) {
         docWindowString = [SUD stringForKey:DocumentWindowFixedPosKey];
         if (docWindowString) {
@@ -3589,7 +4519,7 @@ if ( ! skipTextWindow) {
             }
         else
             LargeArea = 0;
-        
+
         portableDocWindowString = [SUD stringForKey:PortableDocumentWindowFixedPosKey];
         if (portableDocWindowString) {
             NSScanner *portableDocWindow = [NSScanner scannerWithString: portableDocWindowString];
@@ -3609,7 +4539,7 @@ if ( ! skipTextWindow) {
             }
         else   SmallArea = 0;
     }
-                                    
+
     if ( PdfWindowPosFixed == [SUD integerForKey:PdfWindowPosModeKey] ) {
         pdfWindowString = [SUD stringForKey:PdfWindowFixedPosKey];
         if (pdfWindowString) {
@@ -3628,7 +4558,7 @@ if ( ! skipTextWindow) {
             }
         else
             LargePDFArea = 0;
-        
+
         portablePDFWindowString = [SUD stringForKey:PortablePdfWindowFixedPosKey];
         if (portablePDFWindowString) {
             NSScanner *portablePDFWindow = [NSScanner scannerWithString: portablePDFWindowString];
@@ -3649,21 +4579,21 @@ if ( ! skipTextWindow) {
         else
             SmallPDFArea = 0;
         }
-            
+
 
     mainScreen = [NSScreen mainScreen];
     mainRect = [mainScreen frame];
     MainDisplayArea = mainRect.size.width * mainRect.size.height;
-    
-    
+
+
     // inhibit ordering of windows by windowController.
     [windowController setShouldCascadeWindows:NO];
-    
-    
-    
+
+
+
     // restore window position for the html window
     NSWindow *activeHTMLWindow;
-    
+
     // strangely, the "setFrameFromString" below causes a long delay is the file type is "pdf" but not for "tiff" or other types!
     if (! [[[[self fileURL] path] pathExtension] isEqualToString: @"html"])
         switch ([SUD integerForKey:HtmlWindowPosModeKey])
@@ -3680,26 +4610,26 @@ if ( ! skipTextWindow) {
 
 
             case HtmlWindowPosFixed:
-                  
+
                 [_htmlWindow setFrameFromString:[SUD stringForKey:HtmlWindowFixedPosKey]];
-               
+
                break;
-            
+
          }
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
 
     // restore window position for the document window
     NSWindow *activeTextWindow;
-    
+
     // strangely, the "setFrameFromString" below causes a long delay is the file type is "pdf" but not for "tiff" or other types!
     if (! [[[[self fileURL] path] pathExtension] isEqualToString: @"pdf"])
         switch ([SUD integerForKey:DocumentWindowPosModeKey])
@@ -3722,26 +4652,26 @@ if ( ! skipTextWindow) {
              //   NSLog(@"Portable");
              //   NSLog([SUD stringForKey:PortableDocumentWindowFixedPosKey]);
              //   NSLog([SUD stringForKey:PortablePdfWindowFixedPosKey]);
-                
+
                 if (LargeArea < SmallArea) {
                     temp = LargeArea;
                     LargeArea = SmallArea;
                     SmallArea = temp;
                 }
-               
+
                if ((SmallArea < 10) || (MainDisplayArea > (LargeArea + SmallArea) / 2))
                    [textWindow setFrameFromString:[SUD stringForKey:DocumentWindowFixedPosKey]];
                else
                     [textWindow setFrameFromString:[SUD stringForKey:PortableDocumentWindowFixedPosKey]];
                break;
-            
+
             /*
             case DocumentWindowPosFixed:
                 [textWindow setFrameFromString:[SUD stringForKey:DocumentWindowFixedPosKey]];
                 break;
             */
         }
-    
+
     // restore window position for the pdf window
     switch ([SUD integerForKey:PdfWindowPosModeKey])
     {
@@ -3752,10 +4682,10 @@ if ( ! skipTextWindow) {
             NSInteger numberOfWindows = 0;
             NSInteger i;
             NSInteger *listOfWindows;
-            
+
         //    NSCountWindowsForContext([NSApp contextID], &numberOfWindows);
             NSCountWindows(&numberOfWindows);
-            
+
             if (numberOfWindows>0){
                 listOfWindows = malloc(numberOfWindows * sizeof(NSInteger));
                 //NSWindowListForContext([NSApp contextID], numberOfWindows, listOfWindows);
@@ -3779,7 +4709,7 @@ if ( ! skipTextWindow) {
                 LargePDFArea = SmallPDFArea;
                 SmallPDFArea = temp;
             }
-           
+
             if ((SmallPDFArea < 10) || (MainDisplayArea > (LargePDFArea + SmallPDFArea) / 2)) {
                 [pdfWindow setFrameFromString:[SUD stringForKey:PdfWindowFixedPosKey]];
                 [self.pdfKitWindow setFrameFromString:[SUD stringForKey:PdfWindowFixedPosKey]];
@@ -3793,7 +4723,7 @@ if ( ! skipTextWindow) {
             [pdfWindow setFrameFromString:[SUD stringForKey:PdfWindowFixedPosKey]];
             [self.pdfKitWindow setFrameFromString:[SUD stringForKey:PortablePdfWindowFixedPosKey]];
 */
-            
+
         }
 
 
@@ -3917,11 +4847,11 @@ if ( ! skipTextWindow) {
 /*" Changes the font of %textView to the one saved in the NSUserDefaults. This method is also registered with NSNotificationCenter and a notifictaion will be send whenever the font changes in the preferences panel.
 "*/
 {
-   
-    
+
+
 	NSData	*fontData;
 	NSFont 	*font;
- 
+
      {
         fontData = [SUD objectForKey:DocumentFontKey];
         if (fontData != nil)
@@ -3931,7 +4861,7 @@ if ( ! skipTextWindow) {
             [textView2 setFontSafely:font];
         }
     }
-    
+
     [self fixUpTabs];
 }
 
@@ -3942,19 +4872,19 @@ if ( ! skipTextWindow) {
 {
 	NSData	*fontData;
 	NSFont 	*font, *theFont;
-    
+
     if (! [SUD boolForKey:ScreenFontForLogAndConsoleKey])
     {
       //  [self.logTextView setFontSafely:[NSFont screenFontWithRenderingMode:NSFontDefaultRenderingMode]];
-        
+
         theFont = [NSFont fontWithName: [SUD stringForKey:ConsoleFontNameKey] size:[SUD floatForKey:ConsoleFontSizeKey]];
-     
+
         // change below requested by Claudio Beccari on Dec 25, 2020
         // [self.logTextView setFontSafely: [NSFont userFontOfSize:12.0]];
         [self.logTextView setFontSafely: theFont];
         return;
     }
-    
+
 	fontData = [SUD objectForKey:DocumentFontKey];
 	if (fontData != nil)
         {
@@ -3969,12 +4899,12 @@ if ( ! skipTextWindow) {
     NSFont		*theFont;
 
 	theFont = [NSFont fontWithName: [SUD stringForKey:ConsoleFontNameKey] size:[SUD floatForKey:ConsoleFontSizeKey]];
-    
+
     if ([SUD boolForKey:ScreenFontForLogAndConsoleKey])
         [outputText setFontSafely: [theFont screenFontWithRenderingMode:NSFontDefaultRenderingMode]];
     else
         [outputText setFontSafely: theFont];
-    
+
     [self setLogWindowFontFromPreferences:notification];
 }
 
@@ -3982,7 +4912,7 @@ if ( ! skipTextWindow) {
 {
     /*
 	NSColor		*backgroundColor;
-		
+
 	backgroundColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:ConsoleBackgroundColor_RKey]
 												green: [SUD floatForKey:ConsoleBackgroundColor_GKey]
 												blue: [SUD floatForKey:ConsoleBackgroundColor_BKey]
@@ -3995,7 +4925,7 @@ if ( ! skipTextWindow) {
 {
     /*
 	NSColor		*foregroundColor;
-	
+
 	foregroundColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:ConsoleForegroundColor_RKey]
 												green: [SUD floatForKey:ConsoleForegroundColor_GKey]
 												 blue: [SUD floatForKey:ConsoleForegroundColor_BKey]
@@ -4025,7 +4955,7 @@ if ( ! skipTextWindow) {
 {
 	/*
      NSColor	*backgroundColor;
-	
+
 	backgroundColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:background_RKey]
 												green: [SUD floatForKey:background_GKey]
 												blue: [SUD floatForKey:background_BKey]
@@ -4039,17 +4969,17 @@ if ( ! skipTextWindow) {
 {
     /*
 	NSColor	*textColor, *insertionpointColor;
-	
+
 	textColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:foreground_RKey]
 												green: [SUD floatForKey:foreground_GKey]
                                                  blue: [SUD floatForKey:foreground_BKey]
 												alpha:1.0];
-    
+
     insertionpointColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:insertionpoint_RKey]
 													green: [SUD floatForKey:insertionpoint_GKey]
 													 blue: [SUD floatForKey:insertionpoint_BKey]
 													alpha:1.0];
-    
+
 	[textView1 setTextColor: textColor];
 	[textView2 setTextColor: textColor];
     [textView1 setInsertionPointColor: insertionpointColor];
@@ -4065,7 +4995,7 @@ if ( ! skipTextWindow) {
 {
     /*
 	NSColor	*backgroundColor;
-	
+
 	backgroundColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:background_RKey]
 												green: [SUD floatForKey:background_GKey]
 												 blue: [SUD floatForKey:background_BKey]
@@ -4078,12 +5008,12 @@ if ( ! skipTextWindow) {
 {
     /*
 	NSColor		*foregroundColor;
-	
+
 	foregroundColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:foreground_RKey]
 												green: [SUD floatForKey:foreground_GKey]
 												 blue: [SUD floatForKey:foreground_BKey]
 												alpha:1.0];
-	
+
 	[self.logTextView setTextColor: foregroundColor];
      */
 }
@@ -4116,12 +5046,12 @@ if ( ! skipTextWindow) {
     NSFont  *font;
     NSAttributedString *myAttributedString;
     NSDictionary *fontStyle;
-    
+
     {
         font = [textView font];
         self.previousFontData = [NSArchiver archivedDataWithRootObject: font];
     }
-    
+
     myAttributedString = textView.textStorage;
     if (myAttributedString == nil)
         self.previousFontStyleData = nil;
@@ -4143,7 +5073,7 @@ if ( ! skipTextWindow) {
   		self.previousFontData = [NSArchiver archivedDataWithRootObject: font];
         self.previousFontStyleData = [NSArchiver archivedDataWithRootObject: fontStyle];
     NSAttributedString *myAttributedString;
-    
+
     //    if (self.previousFontData != nil)
     //            [self.previousFontData release];
     {
@@ -4153,7 +5083,7 @@ if ( ! skipTextWindow) {
     }
 */
 }
-	 
+
 - (void)setCommandCompletionChar: (NSNotification *)notification
 /*" Called when preferences changes the Command Completion Character "*/
 	{
@@ -4161,12 +5091,12 @@ if ( ! skipTextWindow) {
 		unichar tab = 0x0009; // ditto
 	//	if (g_commandCompletionChar)
 	//		[g_commandCompletionChar release];
-		
-		if ([[SUD stringForKey: CommandCompletionCharKey] isEqualToString:@"ESCAPE"]) 
+
+		if ([[SUD stringForKey: CommandCompletionCharKey] isEqualToString:@"ESCAPE"])
 			g_commandCompletionChar = [NSString stringWithCharacters: &esc length: 1] ;
 		else
 			g_commandCompletionChar = [NSString stringWithCharacters: &tab length: 1];
-		
+
 	}
 
 - (void)revertDocumentFont:(NSNotification *)notification
@@ -4177,8 +5107,8 @@ preference change is cancelled. "*/
     NSDictionary *fontAttributes;
     NSMutableAttributedString *myAttributedString;
     NSRange myRange;
-    
-    
+
+
     if (self.previousFontData != nil)
     {
         // NSLog(@"did font only");
@@ -4190,21 +5120,21 @@ preference change is cancelled. "*/
          [self.logTextView setFontSafely:font];
          */
     }
-    
-    
+
+
     myAttributedString = textView1.textStorage;
     NSUInteger thelength = [myAttributedString length];
     myRange.location = 0;
     myRange.length = thelength;
     [myAttributedString setAttributes: nil range: myRange];
- 
-    
+
+
     NSTextStorage* textViewContent = [textView1 textStorage];
     NSRange area = NSMakeRange(0, [textViewContent length]);
     /*
     [textViewContent invalidateAttributesInRange:area];
     */
-    
+
     if (self.previousFontStyleData != nil)
     {
         fontAttributes = [NSUnarchiver unarchiveObjectWithData:self.previousFontStyleData];
@@ -4212,7 +5142,7 @@ preference change is cancelled. "*/
         {
              [textViewContent addAttributes: fontAttributes range: area];
         }
-    
+
         /*
          if (! [SUD boolForKey:ScreenFontForLogAndConsoleKey])
          {
@@ -4223,22 +5153,22 @@ preference change is cancelled. "*/
          }
          */
      }
-    
+
     else
-    
-    
-    
+
+
+
 	[self fixUpTabs];
-    
+
      if (! [SUD boolForKey:ScreenFontForLogAndConsoleKey])
          return;
-    
+
     if (self.previousFontData != nil)
     {
        font = [NSUnarchiver unarchiveObjectWithData:self.previousFontData];
         [self.logTextView setFontSafely:font];
     }
-    
+
 }
 
 
@@ -4340,19 +5270,19 @@ preference change is cancelled. "*/
 	[myPrintInfo setHorizontalPagination: NSFitPagination];
 	[myPrintInfo setVerticallyCentered:NO];
     [myPrintInfo setOrientation: NSPortraitOrientation];
-	
+
     oldTextColor = textView.textColor;
     oldBackgroundColor = textView.backgroundColor;
     [textView setBackgroundColor:[NSColor whiteColor]];
     [textView setTextColor: [NSColor blackColor]];
-    
+
     printOperation = [NSPrintOperation printOperationWithView:textView printInfo: myPrintInfo];
     [printOperation setShowsPrintPanel:YES];
     [printOperation setShowsProgressPanel:YES];
     printPanel = [printOperation printPanel];
     [printPanel setOptions:([printPanel options] | NSPrintPanelShowsOrientation | NSPrintPanelShowsScaling)];
 	[printOperation runOperation];
-    
+
     [textView setBackgroundColor:oldBackgroundColor];
     [textView setTextColor: oldTextColor];
 
@@ -4364,9 +5294,9 @@ preference change is cancelled. "*/
 - (void) doChooseMethod: sender
 {
 	NSMenu *menu;
-	
+
 	 menu = [[[NSApp mainMenu] itemWithTitle:NSLocalizedString(@"Typeset", @"Typeset")] submenu];
-	
+
 	[[menu itemWithTag:kTypesetViaPDFTeX] setState:NSOffState];
 	[[menu itemWithTag:kTypesetViaGhostScript] setState:NSOffState];
 	[[menu itemWithTag:kTypesetViaPersonalScript] setState:NSOffState];
@@ -4377,13 +5307,13 @@ preference change is cancelled. "*/
 - (void) fixTypesetMenu
 {
     NSMenu				*menu;
-    
+
     menu = [[[NSApp mainMenu] itemWithTitle:NSLocalizedString(@"Typeset", @"Typeset")] submenu];
-    
+
     [[menu itemWithTag:kTypesetViaPDFTeX] setState:NSOffState];
     [[menu itemWithTag:kTypesetViaGhostScript] setState:NSOffState];
     [[menu itemWithTag:kTypesetViaPersonalScript] setState:NSOffState];
-    
+
     [[menu itemWithTag:whichScript] setState:NSOnState];
 
   }
@@ -4392,9 +5322,9 @@ preference change is cancelled. "*/
 {
     NSMenu				*menu;
     BOOL                value;
-    
+
     value = self.syntaxColor;
-    
+
     menu = [[[NSApp mainMenu] itemWithTitle:NSLocalizedString(@"Source", @"Source")] submenu];
     [[menu itemWithTag:14] setState:self.syntaxColor];
 
@@ -4419,25 +5349,25 @@ preference change is cancelled. "*/
 /*
 - (void)willTerminate:(NSNotification *)notification
 {
-    
+
     if (skipTextWindow) {
       //  NSLog(@"got to terminate");
-        if ([pdfWindow isVisible]) 
+        if ([pdfWindow isVisible])
             [pdfWindow performClose:self];
-        else if ([self.pdfKitWindow isVisible]) 
+        else if ([self.pdfKitWindow isVisible])
             [self.pdfKitWindow performClose: self];
         [self close];
     }
-        
-    
+
+
     if (skipTextWindow) {
-        if ([pdfWindow isVisible]) 
+        if ([pdfWindow isVisible])
             [pdfWindow performClose:self];
-        else if ([self.pdfKitWindow isVisible]) 
+        else if ([self.pdfKitWindow isVisible])
             [self.pdfKitWindow performClose: self];
         }
-    
-        
+
+
 }
 */
 
@@ -4540,20 +5470,20 @@ preference change is cancelled. "*/
 {
 //    NSLog(@"got here");
     NSWindow    *theWindow;
-     
+
     self.encodingWindowController = [[CustomModalWindowController alloc] initWithWindowNibName:@"CustomModalWindowController"];
-    
+
     [self.encodingWindowController initializeEncodingMatrix: self];
 
     if (self.useFullSplitWindow)
         theWindow = self.fullSplitWindow;
     else
         theWindow = self.textWindow;
-     
+
     // self.textWindow
     [theWindow beginSheet:self.encodingWindowController.window  completionHandler:^(NSModalResponse returnCode) {
           //  NSLog(@"Sheet closed");
-            
+
             switch (returnCode) {
                 case NSModalResponseOK:
                   //  NSLog(@"Done button tapped in Custom Sheet");
@@ -4561,15 +5491,15 @@ preference change is cancelled. "*/
                 case NSModalResponseCancel:
                   //  NSLog(@"Cancel button tapped in Custom Sheet");
                     break;
-                    
+
                 default:
                     break;
             }
-            
+
             self.encodingWindowController = nil;
         }];
 
-        
+
     }
 
 
@@ -4727,10 +5657,10 @@ preference change is cancelled. "*/
 
 - (void) TagsAtClick2:(NSNotification *)notification
 {
-     
+
     if ( ! [SUD boolForKey:UseNewTagsAndLabelsKey])
         return;
-    
+
     [self setupTags1];
 }
 
@@ -4739,7 +5669,7 @@ preference change is cancelled. "*/
 {
     if ( ! [SUD boolForKey:UseNewTagsAndLabelsKey])
         return;
-    
+
     [self setupLabels1];
 }
 
@@ -4747,7 +5677,7 @@ preference change is cancelled. "*/
 {
     if ( ! [SUD boolForKey:UseNewTagsAndLabelsKey])
         return;
-    
+
     [self setupTags2];
     [self setupLabels1];
 }
@@ -4759,7 +5689,7 @@ preference change is cancelled. "*/
     NSString  *titleString;
     NSRange     nameRange;
     NSUInteger    destchar;
-    
+
     titleString = [sender title];               //the label itself - also the popup string entry
     //matchString = [sender representedObject];
     destchar = [sender tag];                    //this should have been set as the character number of the entry
@@ -4771,7 +5701,7 @@ preference change is cancelled. "*/
 
 - (void) setupLabels1
 {
-    
+
     if (!fileIsTex)
         return;
     //NDS - update labels here, whenever tags are updated
@@ -4781,8 +5711,8 @@ preference change is cancelled. "*/
 
 - (void)fixUpLabels:(id)sender
 {
-    
-    
+
+
 //    NSLog(@"got here");
    [self fixLabels];
 }
@@ -4797,14 +5727,14 @@ preference change is cancelled. "*/
     if ([SUD boolForKey:CreateLabelListKey]) {
         NSArray *myItems = [[[self textWindow] toolbar] items];
         NSArray *mySplitItems = [[[self fullSplitWindow] toolbar] items];
-        
+
         if ( (([[self textWindow] toolbar].isVisible) && ([myItems containsObject: theLabels]))
             || ( ([[self fullSplitWindow] toolbar].isVisible) && ([mySplitItems containsObject: theSLabels])))
         {
            [self fixLabels];
         }
     }
- 
+
 }
 
 
@@ -4812,22 +5742,22 @@ preference change is cancelled. "*/
 // NDS added - generate label entries
 - (void) fixLabels
 {
-    
-    
+
+
     if (!fileIsTex) return;     //only for TeX docs
     NSString *text;             //the whole doc
     id newItem;                 //new popup entries
     NSUInteger    length;
-    
+
     text = [textView string];
     NSScanner *labelScanner = [[NSScanner alloc] initWithString:text];
     NSString *scanned = nil;
     NSString *scanFormat;
-    
+
     [labelScanner setCharactersToBeSkipped:nil];
     length = [text length];
     scanFormat = @"\\label{";
-    
+
     [labels removeAllItems];
     [labels addItemWithTitle:NSLocalizedString(@"Labels", @"Labels")];
     [slabels removeAllItems];
@@ -4880,11 +5810,11 @@ preference change is cancelled. "*/
 
 - (void)newTag: (id)sender
 {
-    
+
     NSString        *text;
     NSRange        myRange, tempRange;
     NSUInteger        start, end, end1, changeStart, changeEnd;
-    
+
     text = [textView string];
     myRange = [textView selectedRange];
     // get old string for Undo
@@ -4911,28 +5841,28 @@ preference change is cancelled. "*/
     NSUInteger    length;
     NSUInteger    lineNumber = 0;
     NSUInteger    destLineNumber;
-    
 
-    
+
+
     titleString = [sender title];
     matchString = [sender representedObject];
     destLineNumber = [sender tag];
-    
+
     if (!matchString)
         return;
-    
+
     text = [textView string];
     length = [text length];
     myRange.location = 0;
     myRange.length = 1;
-    
+
     // Search for the line with number 'destLineNumber'.
     while ((myRange.location < length) && (lineNumber < destLineNumber)) {
         [text getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
         myRange.location = end;
         lineNumber++;
     }
-    
+
     nameRange.location    = start;
     nameRange.length    = [matchString length];
     if ((lineNumber == destLineNumber) && (start + nameRange.length < length)) {
@@ -4950,7 +5880,7 @@ preference change is cancelled. "*/
     NSUInteger myStart, myEnd;
     NSRange myRange;
     NSString *nextLine;
-    
+
     myRange.location = *startLocation;
     myRange.length = 1;
     if (myRange.location < length)
@@ -4970,12 +5900,12 @@ preference change is cancelled. "*/
 {
     if ( ! [SUD boolForKey:UseNewTagsAndLabelsKey])
         return;
-    
+
     NSToolbar *theToolbar =    [[self textWindow] toolbar];
     if ((! [SUD boolForKey:TagMenuInMenuBarKey]) && (! (theToolbar.displayMode == NSToolbarDisplayModeLabelOnly)))
         return;
-    
-    
+
+
     [self setupTags1];
 }
 
@@ -4993,8 +5923,8 @@ preference change is cancelled. "*/
     NSString    *commentTab = @"                ";
     NSInteger  xmlTag;
     NSString   *line, *titleString, *nextLine, *extraString, *aString;
-    
-    
+
+
     tagLocation = 0;
     tagLocationLine = 0;
     [tags removeAllItems];
@@ -5004,29 +5934,29 @@ preference change is cancelled. "*/
     NSMenu *tagsMenu = [[[NSApp mainMenu] itemWithTitle:
                          NSLocalizedString(@"Tags", @"Tags")] submenu];
     [tagsMenu removeAllItems];
-    
+
     if (!fileIsTex) return;
     if (! [SUD boolForKey:CreateTagListKey])
         return;
 //self.tagTimer = [NSTimer scheduledTimerWithTimeInterval: .02 target:self selector:@selector(fixTags:) userInfo:nil repeats:YES] ;
-    
-    
+
+
     text = [textView string];
     length = [text length];
     idx = tagLocation + 10000;
     lineNumber = tagLocationLine; // added
     myRange.location = tagLocation;
     myRange.length = 1;
-    
+
     enableAutoTagSections = [SUD boolForKey: TagSectionsKey];
-    
+
     // Iterate over all lines
     while (myRange.location < length) {
         [text getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
         myRange.location = end;
         tempLocation = end;
         lineNumber++;
-        
+
         // Only consider lines which aren't too short...
         if (end-start > 3) {
             // NSString *line, *titleString;
@@ -5034,33 +5964,33 @@ preference change is cancelled. "*/
             nameRange.length = end - start;
             line = [text substringWithRange: nameRange];
             titleString = 0;
-          
+
             if (self.fileIsXML)
-                
+
             {
                 xmlTag = [self xmlTag: line];
-                
-                
+
+
                 if ((xmlTag == 10) && (g_activeXMLTags[10]))
                 {
-                    
+
                     titleString = @"main: ";
                     startRange = [line rangeOfString:@"<!--!"];
                     endRange = [line rangeOfString: @"-->"];
                     if ((startRange.location != NSNotFound) && (endRange.location != NSNotFound) && ((startRange.location + 5) < endRange.location))
                     {
-                        
+
                         tempRange.location = startRange.location + 5;
                         tempRange.length = endRange.location - tempRange.location;
                         aString = [line substringWithRange: tempRange];
                         titleString = [titleString stringByAppendingString: aString];
-                        
+
                     }
-                    
+
                 }
                 else
-                
-                 
+
+
                  if (xmlTag >= 0)
                 {
                     titleString = [g_taggedXMLTagSections objectAtIndex:xmlTag];
@@ -5071,7 +6001,7 @@ preference change is cancelled. "*/
                     else
                         extraString = @"";
                     if (([extraString length] == 0) && (xmlTag == 8))
-                        
+
                     {
                         nextLine = [self getNextLineForText:text ofLength:length fromLocation: &tempLocation];
                         xmlNoParameter = false;
@@ -5080,7 +6010,7 @@ preference change is cancelled. "*/
                         else
                             extraString = @"";
                     }
-                    
+
                     if (extraString && [extraString length] > 40)
                     {
                         cutRange.location = 0;
@@ -5091,12 +6021,12 @@ preference change is cancelled. "*/
                     titleString = [titleString stringByAppendingString: extraString];
                 }
             }
-        
-          
+
+
             else
-           
+
             {
-            
+
             // Lines starting with '%:' are added to the tags menu.
             if ([line hasPrefix:@"%:"]) {
                 titleString = [commentTab stringByAppendingString: [line substringFromIndex:2]];
@@ -5109,26 +6039,26 @@ preference change is cancelled. "*/
                 NSUInteger    i;
                 for (i = 0; i < [g_taggedTeXSections count]; ++i) {
                     NSString* tag = [g_taggedTeXSections objectAtIndex:i];
-                     
+
                     if ([line hasPrefix:tag]) {
                         // Extract the text after the 'section' command, then prefix it with a nice header
                         // text taken from g_taggedTagSections.
                         // This tries to only extract the text inside a matching pair of braces '{' and '}'.
                         // To see why, consider this example:
                         //   \section*{Section {\bf headers} are important} \label{a-section-label}
-                        
+
                         // 2024 Koch
                         if ([tag isEqualToString: @"\\part{"])
                             tag = @"\\part";
                         if ([tag isEqualToString: @"% \\part{"])
                             tag = @"% \\part";
-                        
+
                         NSInteger braceCount = 0;
                         unichar c;
-                        
+
                         titleString = [line substringFromIndex: [tag length]];
                         tag = [g_taggedTagSections objectAtIndex:i];
-                        
+
                         // Next we scan for braces. Note that a section command could
                         // span more than one line, have embedded comments etc.. We can't
                         // cope with all these cases in a sensible fashion, though. If
@@ -5149,17 +6079,17 @@ preference change is cancelled. "*/
                             }
                         }
                         nameRange.length = i - nameRange.location;
-                        
+
                         titleString = [titleString substringWithRange:nameRange];
                         titleString = [tag stringByAppendingString: titleString];
                         break;
                     }
                 }
             }
-                
+
             }
-            
-            
+
+
             // TODO: Hierarchical menus would be cool. This could be achieved
             // by assiging the tags a 'level', maybe based on their position
             // in the g_taggedTagSections array (and '%:' markers would have
@@ -5184,7 +6114,7 @@ preference change is cancelled. "*/
                 [newItem setTag: lineNumber];
                 [newItem setTitle: titleString];
                 [newItem setRepresentedObject: line];
-                
+
                 NSMenu *tagsMenu = [[[NSApp mainMenu] itemWithTitle:
                                      NSLocalizedString(@"Tags", @"Tags")] submenu];
                 anItem = [[NSMenuItem alloc] initWithTitle: titleString action: @selector(doTag:) keyEquivalent: @""];
@@ -5195,7 +6125,7 @@ preference change is cancelled. "*/
             }
         }
     }
-    
+
 
 }
 
@@ -5206,7 +6136,7 @@ preference change is cancelled. "*/
 {
     if (  [SUD boolForKey:UseNewTagsAndLabelsKey])
        return;
-    
+
 		[self.tagTimer invalidate];
 	//	[self.tagTimer release];
 		self.tagTimer = nil;
@@ -5220,9 +6150,9 @@ preference change is cancelled. "*/
         NSMenu *tagsMenu = [[[NSApp mainMenu] itemWithTitle:
 							NSLocalizedString(@"Tags", @"Tags")] submenu];
         [tagsMenu removeAllItems];
-    
+
     [self setupLabels2];
- 
+
     if ([SUD boolForKey:CreateTagListKey])
         self.tagTimer = [NSTimer scheduledTimerWithTimeInterval: .02 target:self selector:@selector(fixTags:) userInfo:nil repeats:YES] ;
 
@@ -5241,8 +6171,8 @@ preference change is cancelled. "*/
     NSString    *commentTab = @"                ";
 
 	if (!fileIsTex) return;
-    
- 
+
+
 	text = [textView string];
 	length = [text length];
 	idx = tagLocation + 10000;
@@ -5343,7 +6273,7 @@ preference change is cancelled. "*/
 				[newItem setTag: lineNumber];
 				[newItem setTitle: titleString];
 				[newItem setRepresentedObject: line];
-          
+
                 NSMenu *tagsMenu = [[[NSApp mainMenu] itemWithTitle:
                                      NSLocalizedString(@"Tags", @"Tags")] submenu];
                 anItem = [[NSMenuItem alloc] initWithTitle: titleString action: @selector(doTag:) keyEquivalent: @""];
@@ -5372,29 +6302,29 @@ preference change is cancelled. "*/
 // added by Terada (- (void)resetHighlight:)
 - (void)resetHighlight:(id)sender
 {
-    
+
   // item added by Koch in August, 2018
-    
+
     if (braceHighlighting)
     {
-        
+
        NSRange theRange;
-        
+
         theRange.location = 0;
         theRange.length = [self.textStorage length];
         [[textView1 layoutManager] removeTemporaryAttribute:NSForegroundColorAttributeName forCharacterRange:theRange];
         [[textView2 layoutManager] removeTemporaryAttribute:NSForegroundColorAttributeName forCharacterRange:theRange];
         [self colorizeVisibleAreaInTextView:textView1];
         [self colorizeVisibleAreaInTextView:textView2];
-        
-        
+
+
         braceHighlighting = NO;
     }
-    
+
 	 if([textView1 hasMarkedText] || [textView2 hasMarkedText])
 		return;
-    
-  	
+
+
 	if(windowIsSplit){
 		[self colorizeVisibleAreaInTextView:textView1];
 		[self colorizeVisibleAreaInTextView:textView2];
@@ -5434,7 +6364,7 @@ preference change is cancelled. "*/
 {
 
     NSDictionary *colorDictionary;
-    
+
 #ifdef MOJAVEORHIGHER
     if ((atLeastMojave) && (textView1.effectiveAppearance.name == NSAppearanceNameDarkAqua))
         colorDictionary = darkColors;
@@ -5443,7 +6373,7 @@ preference change is cancelled. "*/
         colorDictionary = liteColors;
 
  NSColor *backgroundColor = [[TSColorSupport sharedInstance] colorFromDictionary:colorDictionary andKey: @"EditorBackground"];
-    
+
  /*
     NSColor* backgroundColor = [NSColor colorWithCalibratedRed: [SUD floatForKey:background_RKey]
 														 green: [SUD floatForKey:background_GKey]
@@ -5463,37 +6393,37 @@ preference change is cancelled. "*/
 {
 	contentHighlighting = YES;
 	if(windowIsSplit){
-		[[textView1 layoutManager] addTemporaryAttributes:highlightContentColorDict 
+		[[textView1 layoutManager] addTemporaryAttributes:highlightContentColorDict
 										forCharacterRange:NSRangeFromString(range)];
-		[[textView2 layoutManager] addTemporaryAttributes:highlightContentColorDict 
+		[[textView2 layoutManager] addTemporaryAttributes:highlightContentColorDict
 										forCharacterRange:NSRangeFromString(range)];
 	}else {
-		[[textView layoutManager] addTemporaryAttributes:highlightContentColorDict 
+		[[textView layoutManager] addTemporaryAttributes:highlightContentColorDict
 									   forCharacterRange:NSRangeFromString(range)];
 	}
-	
+
 }
 
 // added by Terada (- (void)hilightBraceAt:)
 - (void)highlightBracesAt:(NSArray*)locations
 {
-    
+
 	NSInteger location1 = [[locations objectAtIndex:0] integerValue];
 	NSInteger location2 = [[locations objectAtIndex:1] integerValue];
 
 	if (windowIsSplit) {
-		[[textView1 layoutManager] addTemporaryAttributes:highlightBracesColorDict 
+		[[textView1 layoutManager] addTemporaryAttributes:highlightBracesColorDict
 										forCharacterRange:NSMakeRange(location1, 1)];
-		[[textView1 layoutManager] addTemporaryAttributes:highlightBracesColorDict 
+		[[textView1 layoutManager] addTemporaryAttributes:highlightBracesColorDict
 										forCharacterRange:NSMakeRange(location2, 1)];
-		[[textView2 layoutManager] addTemporaryAttributes:highlightBracesColorDict 
+		[[textView2 layoutManager] addTemporaryAttributes:highlightBracesColorDict
 										forCharacterRange:NSMakeRange(location1, 1)];
-		[[textView2 layoutManager] addTemporaryAttributes:highlightBracesColorDict 
+		[[textView2 layoutManager] addTemporaryAttributes:highlightBracesColorDict
 										forCharacterRange:NSMakeRange(location2, 1)];
 	}else {
-		[[textView layoutManager] addTemporaryAttributes:highlightBracesColorDict 
+		[[textView layoutManager] addTemporaryAttributes:highlightBracesColorDict
 							forCharacterRange:NSMakeRange(location1, 1)];
-		[[textView layoutManager] addTemporaryAttributes:highlightBracesColorDict 
+		[[textView layoutManager] addTemporaryAttributes:highlightBracesColorDict
 							forCharacterRange:NSMakeRange(location2, 1)];
 	}
 	braceHighlighting = YES;
@@ -5507,26 +6437,26 @@ preference change is cancelled. "*/
 	BOOL showIndicatorForMove = [SUD boolForKey:ShowIndicatorForMoveEnabledKey];
 	BOOL beep = [SUD boolForKey:BeepEnabledKey];
 	BOOL flashBackground = [SUD boolForKey:FlashBackgroundEnabledKey];
-	
+
 	BOOL checkBrace =  [SUD boolForKey:CheckBraceEnabledKey];
 	BOOL checkBracket =  [SUD boolForKey:CheckBracketEnabledKey];
 	BOOL checkSquareBracket = [SUD boolForKey:CheckSquareBracketEnabledKey];
 	BOOL checkParen = [SUD boolForKey:CheckParenEnabledKey];
-	
+
 	// if (![SUD boolForKey:SyntaxColoringEnabledKey]
     if ((! self.syntaxColor)
 		|| (!checkBrace && !checkBracket && !checkSquareBracket && !checkParen)) {
 		return;
 	}
-	
+
 	if(contentHighlighting){
-		[self performSelector:@selector(resetBackgroundColor:) 
+		[self performSelector:@selector(resetBackgroundColor:)
 				   withObject:nil afterDelay:0];
 	}
-	
+
 	@try {
 		if(alwaysHighlight || braceHighlighting){
-			[self performSelector:@selector(resetHighlight:) 
+			[self performSelector:@selector(resetHighlight:)
 					   withObject:nil afterDelay:0];
 		}
 	}
@@ -5534,9 +6464,9 @@ preference change is cancelled. "*/
 	}
 	@finally {
 	}
-	
+
 	unichar k_braceCharList[] = {0x0028, 0x0029, 0x005B, 0x005D, 0x007B, 0x007D, 0x003C, 0x003E}; // ()[]{}<>
-    
+
 	NSString *theString = [_textStorage string];
     NSInteger theStringLength = [theString length];
     if (theStringLength == 0) { return; }
@@ -5544,7 +6474,7 @@ preference change is cancelled. "*/
     NSInteger theLocation = theSelectedRange.location;
     NSInteger theDifference = theLocation - lastCursorLocation;
     lastCursorLocation = theLocation;
-	
+
 	if (theStringLength - lastStringLength == -1) {
 		lastStringLength = theStringLength;
 		lastInputIsDelete = YES;
@@ -5555,22 +6485,22 @@ preference change is cancelled. "*/
 		lastInputIsDelete = NO;
 		return;
 	}
-    
+
 	if (theDifference != 1 && theDifference != -1) {
         return; // If the difference is more than one, they've moved the cursor with the mouse or it has been moved by resetSelectedRange below and we shouldn't check for matching braces then
     }
-    
+
     if (theDifference == 1) { // Check if the cursor has moved forward
         theLocation--;
     }
-	
+
     if (theLocation == theStringLength) {
         return;
     }
-	
+
 	NSInteger originalLocation = theLocation;
     unichar theUnichar = [theString characterAtIndex:theLocation];
-    
+
 //   unichar this = ((theLocation > 0) ? [theString characterAtIndex:theLocation-1] : nil);
 //   BOOL notCS = (this != g_texChar);
 	BOOL notCS = (((theLocation > 0) ? [theString characterAtIndex:theLocation-1] : 0) != g_texChar);
@@ -5605,8 +6535,8 @@ preference change is cancelled. "*/
     }
     NSUInteger theSkipMatchingBrace = 0;
     theCurChar = theUnichar;
-	
-	
+
+
     while ((theLocation += inc) >= 0 && (theLocation < theStringLength)) {
         theUnichar = [theString characterAtIndex:theLocation];
 		notCS = (((theLocation > 0) ? [theString characterAtIndex:theLocation-1] : 0) != g_texChar);
@@ -5618,25 +6548,25 @@ preference change is cancelled. "*/
 									   [NSNumber numberWithInteger:originalLocation],
 									   nil]
 						   afterDelay:0];
-				 
-				
+
+
                 if(highlightContent){
-					[self performSelector:@selector(highlightContent:) 
+					[self performSelector:@selector(highlightContent:)
 							   withObject:NSStringFromRange(NSMakeRange(MIN(originalLocation, theLocation), ABS(originalLocation - theLocation)+1)) afterDelay:0];
 				}
-				
+
 				if (NSFoundationVersionNumber > LEOPARD && !autoCompleting && showIndicatorForMove) {
-					[self performSelector:@selector(showIndicator:) 
-							   withObject:NSStringFromRange(NSMakeRange(theLocation, 1)) 
+					[self performSelector:@selector(showIndicator:)
+							   withObject:NSStringFromRange(NSMakeRange(theLocation, 1))
 							   afterDelay:0];
 				}
-				
-				
+
+
 				if(!alwaysHighlight){
-					[self performSelector:@selector(resetHighlight:) 
+					[self performSelector:@selector(resetHighlight:)
 							   withObject:nil afterDelay:0.30];
 				}
-				
+
                 return;
             } else {
                 theSkipMatchingBrace += inc;
@@ -5645,38 +6575,38 @@ preference change is cancelled. "*/
             theSkipMatchingBrace -= inc;
         }
     }
-	
+
     if(beep) NSBeep();
 	if(flashBackground) {
-        
+
         BOOL withDarkColors;
         NSDictionary *theDictionary;
-        
-        
+
+
 #ifdef MOJAVEORHIGHER
         if ((atLeastMojave) && (textView1.effectiveAppearance.name == NSAppearanceNameDarkAqua))
             withDarkColors = YES;
         else
 #endif
             withDarkColors = NO;
-        
+
         if (withDarkColors)
             theDictionary = darkColors;
         else
             theDictionary = liteColors;
-        
+
         NSColor *flashColor =  [[TSColorSupport sharedInstance] colorFromDictionary:theDictionary andKey: @"EditorFlash"];
-        
+
 
     // this Color should be set in Themes, but if so, we need to face the issue of adding colors and what
     // that does to the data structure. For now we offer a very rough fix. Dick Koch
-        
+
         if (flashColor != nil)
-            
+
             [textView setBackgroundColor: flashColor];
-        
+
         else {
-        
+
         if (withDarkColors)
             // [textView setBackgroundColor:[NSColor colorWithDeviceRed:0.00 green:0.20 blue:0.20 alpha:1.00]];
             [textView setBackgroundColor: [[TSColorSupport sharedInstance] darkColorWithKey: @"EditorFlash"]];
@@ -5684,9 +6614,9 @@ preference change is cancelled. "*/
             // [textView setBackgroundColor:[NSColor colorWithDeviceRed:1 green:0.95 blue:1 alpha:1]];
             [textView setBackgroundColor: [[TSColorSupport sharedInstance] liteColorWithKey: @"EditorFlash"]];
         }
-        
-       
-		[self performSelector:@selector(resetBackgroundColorOfTextView:) 
+
+
+		[self performSelector:@selector(resetBackgroundColorOfTextView:)
 				   withObject:nil afterDelay:0.20];
 	}
 }
@@ -5701,42 +6631,42 @@ preference change is cancelled. "*/
 	// course we already map Cmd-Clicking to something else anyway.
 	// Still, at least block selections would be useful for our users. But until the rest
 	// of the code is not aware of this possibility, we better keep this disabled.
-	
+
 	NSRange			matchRange;
 	NSString		*textString;
 	NSInteger				i, j, count, uchar, leftpar, rightpar;
 	NSDate			*myDate;
-	
+
 	// Record the modified range (for the syntax coloring code).
 	colorStart = affectedCharRange.location;
 	colorEnd = colorStart + [replacementString length];
-    
+
 // Temporarily we leave the code below in case the user wants to return to the old method of handling tags
 // This code always says to fix up tags using a given line
 // The else statement would limit the lines which might contain tags
 // In the new method, the first items causes all lines to "potentially" be searched, but that search is later turned off
-	
+
 #if 1
 	// FIXME HACK: Always rebuild the tags menu when things change...
 	tagLine = YES;
 #else
 	NSRange			tagRange;
 	NSUInteger 		start, end, end1;
-	
+
 	//
 	// Trigger an update of the tags menu, if necessary
 	//
 	tagRange = [replacementString rangeOfString:@"%:"];
 	if (tagRange.length != 0)
 		tagLine = YES;
-	
+
 	// added by S. Zenitani -- "\n" increments tagLocationLine
 	tagRange = [replacementString rangeOfString:@"\n"];
 	if (tagRange.length != 0)
 		tagLine = YES;
 	// end
-	
-	
+
+
 	textString = [textView string];
 	[textString getLineStart:&start end:&end contentsEnd:&end1 forRange:affectedCharRange];
 	tagRange.location = start;
@@ -5744,7 +6674,7 @@ preference change is cancelled. "*/
 	matchRange = [textString rangeOfString:@"%:" options:0 range:tagRange];
 	if (matchRange.length != 0)
 		tagLine = YES;
-	
+
 	// FIXME: The following check is silly. *Every* line contains a newline, so the check will
 	// *always* succeed! And thus we regenerate the tags menu after each key press...
 	// OTOH, just removing this will cause lots of bugs related to tagging: For example,
@@ -5752,17 +6682,17 @@ preference change is cancelled. "*/
 	// now a "%:" on the line. To catch all cases, it is necessary to check for a "%:" in the
 	// textStorage both before the replacement and also after it. Checking replacementString
 	// is rather pointless in most cases.
-	
+
 	// for tagLocationLine (2) Zenitani
 	matchRange = [textString rangeOfString:@"\n" options:0 range:tagRange];
 	if (matchRange.length != 0)
 		tagLine = YES;
-	
+
 	//
 	// Update the list of sections in the tag menu, if enabled
 	//
 	if ([SUD boolForKey: TagSectionsKey]) {
-		
+
 		for (i = 0; i < [g_taggedTeXSections count]; ++i) {
 			tagRange = [replacementString rangeOfString:[g_taggedTeXSections objectAtIndex:i]];
 			if (tagRange.length != 0) {
@@ -5770,15 +6700,15 @@ preference change is cancelled. "*/
 				break;
 			}
 		}
-		
+
 		if (!tagLine) {
-			
+
 			textString = [textView string];
 			[textString getLineStart:&start end:&end
 						 contentsEnd:&end1 forRange:affectedCharRange];
 			tagRange.location	= start;
 			tagRange.length		= end - start;
-			
+
 			for (i = 0; i < [g_taggedTeXSections count]; ++i) {
 				matchRange = [textString rangeOfString: [g_taggedTeXSections objectAtIndex:i] options:0 range:tagRange];
 				if (matchRange.length != 0) {
@@ -5786,26 +6716,26 @@ preference change is cancelled. "*/
 					break;
 				}
 			}
-			
+
 		}
 	}
 #endif
-	
+
 	if (replacementString == nil)
 		return YES;
-	
-	
+
+
 	if ([replacementString length] != 1)
 		return YES;
 	rightpar = [replacementString characterAtIndex:0];
 
 	if ([SUD boolForKey:ParensMatchingEnabledKey]) {
- 		if (!(   ((rightpar == '}') && [SUD boolForKey:CheckBraceEnabledKey]) 
+		if (!(   ((rightpar == '}') && [SUD boolForKey:CheckBraceEnabledKey])
 			  || ((rightpar == ')') && [SUD boolForKey:CheckParenEnabledKey])
 			  || ((rightpar == '>') && [SUD boolForKey:CheckBracketEnabledKey])
 			  || ((rightpar == ']') && [SUD boolForKey:CheckSquareBracketEnabledKey]))) // modified by Terada
 			return YES;
-		
+
 		if (rightpar == '}')
 			leftpar = '{';
 		else if (rightpar == ')')
@@ -5814,14 +6744,14 @@ preference change is cancelled. "*/
 			leftpar = '<'; // added by Terada
 		else
 			leftpar = '[';
-		
+
 		textString = [textView string];
 		i = affectedCharRange.location;
 		j = 1;
 		count = 1;
-		
+
 		if (((i > 0) ? [textString characterAtIndex:i-1] : 0) == g_texChar) return YES; // added by Terada
-		
+
 		// modified Jan 26, 2001, so we don't search entire text
 		while ((i > 0) && (j < 5000)) {
 			i--; j++;
@@ -5836,7 +6766,7 @@ preference change is cancelled. "*/
 				matchRange.length = 1;
 				// modified by Terada (from this line)
 				if ((NSFoundationVersionNumber > LEOPARD) && ([SUD boolForKey: brieflyFlashYellowForMatchKey])) {
-					[self performSelector:@selector(showIndicator:) 
+					[self performSelector:@selector(showIndicator:)
 							   withObject:NSStringFromRange(matchRange)
 							   afterDelay:0.0];
 				}
@@ -5844,17 +6774,17 @@ preference change is cancelled. "*/
 					// koch: here 'affinity' and 'stillSelecting' are necessary, else the wrong range is selected.
 					[textView setSelectedRange: matchRange
 									  affinity: NSSelectByCharacter stillSelecting: YES];
-					
+
 					// TODO / FIXME: Replace the brace highlighting below with something better. See Smultron:
 					//   [layoutManager addTemporaryAttributes:[self highlightColour] forCharacterRange:NSMakeRange(cursorLocation, 1)];
 					//   [self performSelector:@selector(resetBackgroundColour:) withObject:NSStringFromRange(NSMakeRange(cursorLocation, 1)) afterDelay:0.12];
-					
+
 					[textView display];
 					myDate = [NSDate date];
 					// Koch: Jan 26, 2001: changed -0.15 to -0.075 to speed things up
 					while ([myDate timeIntervalSinceNow] > - 0.075);
 					[textView setSelectedRange: affectedCharRange];
-					
+
 				}
 				// modified by Terada (until this line)
 
@@ -5863,9 +6793,9 @@ preference change is cancelled. "*/
 		}
 	}
 
-    
 
-	
+
+
 	return YES;
 }
 
@@ -5882,14 +6812,14 @@ preference change is cancelled. "*/
 - (NSString *) errorLinePathFor: (NSInteger)theError{
 	if (theError < errorNumber)
 		return errorLinePath[theError];
-	else 
+	else
 		return nil;
 }
 
 - (NSString *) errorTextFor: (NSInteger)theError{
 	if (theError < errorNumber)
 		return errorText[theError];
-	else 
+	else
 		return nil;
 }
 
@@ -5912,15 +6842,15 @@ preference change is cancelled. "*/
 	NSString	*myErrorPath;
 	NSString	*myErrorText;
 	TSDocument	*theDocument;
-    
+
     myErrorPath = nil;
     myErrorText = nil;
-	
+
 	myRoot = nil;
 	doError = NO;
-    
+
 if (! useFullSplitWindow) {
-	
+
 	if (self.rootDocument != nil) {
 		wlist = [NSApp orderedDocuments];
 		en = [wlist objectEnumerator];
@@ -5929,7 +6859,7 @@ if (! useFullSplitWindow) {
 				myRoot = self.rootDocument;
 		}
 	}
-	
+
 	if (self.rootDocument == nil) {
 		if (errorNumber > 0) {
 			doError = YES;
@@ -5956,7 +6886,7 @@ if (! useFullSplitWindow) {
 				whichError = 0;
 		}
 	}
-	
+
     if (_externalEditor && doError)
         {
             NSString *fullPath = [[[[self fileURL] path] stringByDeletingLastPathComponent] stringByAppendingPathComponent: [myErrorPath stringByStandardizingPath]];
@@ -5964,15 +6894,15 @@ if (! useFullSplitWindow) {
             [self.myPDFKitView doErrorWithLine: myErrorLine andPath: fullCorrectedPath];
             return;
         }
-    
+
 	if (!_externalEditor && fileIsTex && doError) {
 		if (myErrorPath == nil) {
             [textWindow makeKeyAndOrderFront: self];
 			if (myErrorText == nil)
 				[self toLine: myErrorLine];
-			else 
+			else
 				[self toLine: myErrorLine andSubstring: myErrorText];
-			
+
 		}
 		else {
 			NSString *thePath = [[[[self fileURL] path] stringByDeletingLastPathComponent] stringByAppendingPathComponent: [myErrorPath stringByStandardizingPath]];
@@ -5980,7 +6910,7 @@ if (! useFullSplitWindow) {
 			NSDocumentController *myController = [NSDocumentController sharedDocumentController];
 			theDocument = [myController openDocumentWithContentsOfURL: [NSURL fileURLWithPath: theCorrectedPath] display: YES error:NULL];
 			if (myErrorText == nil) {
-				if (theDocument) 
+				if (theDocument)
 					[theDocument toLine: myErrorLine];
 				else {
 					[textWindow makeKeyAndOrderFront: self];
@@ -5988,16 +6918,16 @@ if (! useFullSplitWindow) {
 				}
 			}
 			else {
-				if (theDocument) 
+				if (theDocument)
 					[theDocument toLine: myErrorLine andSubstring: myErrorText];
 				else {
 					[textWindow makeKeyAndOrderFront: self];
 					[self toLine: myErrorLine andSubstring: myErrorText];
 				}
 			}
-			
+
 		}
-		
+
 	}
 }
     else if (self.rootDocument == nil)
@@ -6016,13 +6946,13 @@ if (! useFullSplitWindow) {
                 [fullSplitWindow makeKeyAndOrderFront: self];
                     if (myErrorText == nil)
                         [self toLine: myErrorLine];
-                    else 
+                    else
                         [self toLine: myErrorLine andSubstring: myErrorText];
-                    
+
                 }
 		}
-        
-        
+
+
     }
 }
 
@@ -6048,39 +6978,39 @@ if (! useFullSplitWindow) {
     NSString    *theExtension;
     BOOL        directory;
     BOOL        found;
-    
+
     if ((! self.useTabs) && (! self.useTabsWithFiles))
         return;
-    
+
     theWindow = (NSWindow *)[self textWindow];
     j = [theWindow.tabbedWindows count];
     if (j > 1)
         return;
-    
-    
+
+
     content = [_textStorage string];
-    
+
     if (! content)
         return;
-    
+
     theLength = [content length];
-    
+
     if (self.useTabs)
    // if ((theLength < 20000) && (self.useTabs))
         {
             myRange.location = 0;
             myRange.length = 1;
             done = NO;
-           
+
             while ((myRange.location < theLength) && (! done)) {
                 [content getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
                 myRange.location = end;
                 myRange.length = 1;
-                
+
                 theRange.location = start; theRange.length = (end - start);
                 includeString = [content substringWithRange: theRange];
                 includeString = [includeString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceCharacterSet]];
-                
+
                 found = NO;
                 includeRange = [includeString rangeOfString:@"\\include{"];
                 if ((includeRange.location != NSNotFound) && (includeRange.location == 0))
@@ -6114,41 +7044,41 @@ if (! useFullSplitWindow) {
                                     if ([[newIncludeString pathExtension] isEqualToString:@""])
                                        newIncludeString = [newIncludeString stringByAppendingPathExtension: @"tex"];
                                     newIncludeString = [newIncludeString stringByExpandingTildeInPath];
-                                    
+
                                     self.numberOfTabs = self.numberOfTabs + 1;
                                     [self.includeFiles addObject: newIncludeString];
                                     if (self.numberOfTabs > MAXNUMOFTABS)
                                         done = YES;
-             
+
                                 }
                         }
                     }
             }
          }
-        
+
        if (self.useTabsWithFiles)
         {
-            
+
             myRange.location = 0;
             myRange.length = 1;
             done = NO;
             numberOfLinesChecked = 0;
-            
+
             while ((numberOfLinesChecked < 50) &&  (myRange.location < theLength) && (!done)) {
-                
+
                 [content getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
                 myRange.location = end;
                 myRange.length = 1;
                 numberOfLinesChecked = numberOfLinesChecked + 1;
-                
+
                 theRange.location = start; theRange.length = (end - start);
                 includeString = [content substringWithRange: theRange];
                 includeString = [includeString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceCharacterSet]];
-                
+
                 includeRange = [includeString rangeOfString:@"% !TEX tabbedFile{"];
                 if ((includeRange.location != NSNotFound) && (includeRange.location == 0))
                 {
-                    
+
                     includeRange.location = includeRange.location + 18;
                     includeRange.length = theRange.length - 18;
                     if (includeRange.length > 0)
@@ -6161,7 +7091,7 @@ if (! useFullSplitWindow) {
                             finalRange.length = newIncludeRange.location - includeRange.location;
                             newerIncludeString = [newIncludeString substringWithRange: finalRange];
                             newIncludeString = [newerIncludeString stringByExpandingTildeInPath];
-                            
+
                             noShortString = YES;
                             shortStringRange = [includeString rangeOfString:@"("];
                             if (shortStringRange.location != NSNotFound)
@@ -6188,7 +7118,7 @@ if (! useFullSplitWindow) {
                                     }
                                 }
                             }
-                            
+
                             self.numberOfTabs = self.numberOfTabs + 1;
                             [self.includeFiles addObject: newIncludeString];
                             if (noShortString)
@@ -6197,25 +7127,25 @@ if (! useFullSplitWindow) {
                                 [self.includeFileShortNames addObject: finalShortString];
                             if (self.numberOfTabs >= MAXNUMOFTABS)
                                 done = YES;
-                            
+
                         }
                     }
                 }
             }
          }
 
-    
+
       numberOfIncludeFiles = self.numberOfTabs;
       if (numberOfIncludeFiles == 0)
           return;
-    
+
      NSFileManager *fileManager = [NSFileManager defaultManager];
       NSDocumentController *myController = [NSDocumentController sharedDocumentController];
-      
+
       for (i = (numberOfIncludeFiles - 1); i >= 0; i = i - 1)
-          
+
       {
-          
+
           thePath = self.includeFiles[i];
           theExtension = [thePath pathExtension];
           if (! [thePath isAbsolutePath])
@@ -6223,9 +7153,9 @@ if (! useFullSplitWindow) {
               newPath =[[[self.fileURL path] stringByDeletingLastPathComponent] stringByAppendingPathComponent: thePath];
               thePath = [newPath stringByStandardizingPath];
           }
-          
+
           if (([fileManager fileExistsAtPath: thePath isDirectory:&directory]) && (! directory))
-              
+
           {
             theDocument = [myController openDocumentWithContentsOfURL: [NSURL fileURLWithPath: thePath] display: YES error:NULL];
              if (theDocument)
@@ -6243,7 +7173,7 @@ if (! useFullSplitWindow) {
                               windowToTab.tab.title = self.includeFileShortNames[i];
 #endif
                       }
-                 
+
                   if (([theExtension isEqualToString: @"pdf"]) || (theDocument.documentType == isPDF))
                       [[self textWindow] addTabbedWindow: [theDocument pdfKitWindow]  ordered: 1];
                   else if ((theDocument.documentType == isJPG) || (theDocument.documentType == isTIFF) || (theDocument.documentType == isJPG) || (theDocument.documentType == isEPS))
@@ -6254,7 +7184,7 @@ if (! useFullSplitWindow) {
       }
     }
 }
- 
+
 
 
 - (NSRange) lineRange: (NSInteger)line
@@ -6263,11 +7193,11 @@ if (! useFullSplitWindow) {
 	NSString	*text;
 	NSUInteger	start, end, stringlength;
 	NSRange		myRange, returnRange;
-	
+
 	returnRange.location = 0;
 	returnRange.length = 0;
-	
-	if (line < 1) 
+
+	if (line < 1)
 		return returnRange;
 	text = [textView string];
 	stringlength = [text length];
@@ -6283,7 +7213,7 @@ if (! useFullSplitWindow) {
 		returnRange.location = start;
 		returnRange.length = (end - start);
 	}
-	
+
 	return returnRange;
 }
 
@@ -6294,7 +7224,7 @@ if (! useFullSplitWindow) {
 	NSString	*text;
 	NSUInteger	start, end, stringlength;
 	NSRange	myRange;
-	
+
 	if (line < 1) return;
 	text = [textView string];
 	stringlength = [text length];
@@ -6312,7 +7242,7 @@ if (! useFullSplitWindow) {
 		[textView setSelectedRange: myRange];
 		[textView scrollRangeToVisible: myRange];
 	}
-	
+
 }
 
 - (void) toLine: (NSInteger) line andSubstring: theString
@@ -6321,12 +7251,12 @@ if (! useFullSplitWindow) {
 	NSString	*text, *lineText, *searchString;
 	NSUInteger	start, end, stringlength;
 	NSRange	myRange, subTextRange;
-	
+
 	if (theString == nil)
 		searchString = nil;
 	else
 		searchString = [theString stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]];
-		
+
 	if (line < 1) return;
 	text = [textView string];
 	stringlength = [text length];
@@ -6358,7 +7288,7 @@ if (! useFullSplitWindow) {
 		[textView setSelectedRange: myRange];
 		[textView scrollRangeToVisible: myRange];
 	}
-	
+
 }
 
 
@@ -6415,7 +7345,7 @@ if (! useFullSplitWindow) {
 
 - (BOOL)validateMenuItem:(NSMenuItem *)anItem
 {
-    
+
     if ([anItem action] == @selector(toggleSyntaxColor:))
     {
         if (self.syntaxColor)
@@ -6423,7 +7353,7 @@ if (! useFullSplitWindow) {
         else
             [anItem setState:NSOffState];
     }
-    
+
     if ([anItem action] == @selector(toggleSyntaxColorEntry:))
     {
         if (self.syntaxcolorEntry)
@@ -6431,7 +7361,7 @@ if (! useFullSplitWindow) {
         else
             [anItem setState:NSOffState];
     }
-    
+
     if ([anItem action] == @selector(toggleExplColor:))
     {
         if (self.useExplColor)
@@ -6439,7 +7369,7 @@ if (! useFullSplitWindow) {
         else
             [anItem setState:NSOffState];
     }
-    
+
     if ([anItem action] == @selector(toggleBlockCursor:))
     {
         if (self.blockCursor)
@@ -6447,7 +7377,7 @@ if (! useFullSplitWindow) {
         else
             [anItem setState:NSOffState];
     }
-    
+
 	if (!fileIsTex) {
 		if ([anItem action] == @selector(saveDocument:) ||
 			[anItem action] == @selector(printSource:))
@@ -6477,7 +7407,7 @@ if (! useFullSplitWindow) {
 		return YES;
 	}
 	// end forsplit
-	
+
 	if ([anItem action] == @selector(showHideLineNumbers:)) {
 		if (lineNumbersShowing)
 			[anItem setState:NSOnState];
@@ -6494,16 +7424,16 @@ if (! useFullSplitWindow) {
 			[anItem setState:NSOffState];
 		return YES;
 	}
-	
+
 	// added by Koch
 	if ([anItem action] == @selector(changeAutoComplete:)) {
 		if (doAutoComplete)
 			[anItem setState:NSOnState];
-		else 
+		else
 			[anItem setState:NSOffState];
 		return YES;
 	}
-    
+
     if ([anItem action] == @selector(toggleXML:)) {
         if (self.fileIsXML)
             [anItem setState:NSOnState];
@@ -6512,7 +7442,7 @@ if (! useFullSplitWindow) {
         return YES;
     }
 
-	
+
 
 	//Michael Witten: mfwitten@mit.edu
 	if ([anItem action] == @selector(setLineBreakMode:)) {
@@ -6522,7 +7452,7 @@ if (! useFullSplitWindow) {
 			case 2: [anItem setState: (lineBreakMode == NSLineBreakByCharWrapping) ? NSOnState : NSOffState]; break;
 		}
 	}
-    
+
     if ([anItem action] == @selector(hardWrapSelection:)) {
 		if (lineBreakMode == NSLineBreakByClipping)
 			return NO;
@@ -6537,9 +7467,9 @@ if (! useFullSplitWindow) {
 
 - (void)bringPdfWindowFront{
 	NSString		*theSource;
-	
+
 	if (!_externalEditor) {
-		
+
 		theSource = [[self textView] string];
 		if ([self checkMasterFile:theSource forTask:RootForSwitchWindow])
 			return;
@@ -6597,11 +7527,11 @@ if (! useFullSplitWindow) {
 	NSString        *expectedFileName, *expectedString;
 	BOOL			result;
     NSStringEncoding theEncoding;
-    
+
     // This is "search sync"
 
 	NSInteger syncMethod = [SUD integerForKey:SyncMethodKey];
-    
+
 	if (syncMethod == SYNCTEXFIRST) {
         [(MyPDFKitView *)self.pdfKitWindow.activeView setOldSync: NO];
 		result = [self doPreviewSyncTeXWithFilename: fileName andLine:line andCharacterIndex:idx andTextView:aTextView];
@@ -6611,12 +7541,12 @@ if (! useFullSplitWindow) {
             return; // 3.53 change
 			// syncMethod = SEARCHONLY;
 		}
-    
+
     if (useFullSplitWindow)
         return;
-	
+
     [(MyPDFKitView *)self.pdfKitWindow.activeView setOldSync: YES];
-    
+
 	if ((syncMethod == SEARCHONLY) || (syncMethod == SEARCHFIRST)) {
 		result = [self doNewPreviewSyncWithFilename:fileName andLine:line andCharacterIndex:idx andTextView:aTextView];
 		if (result)
@@ -6630,7 +7560,7 @@ if (! useFullSplitWindow) {
 	NSString *infoFile = [[fileName1 stringByDeletingPathExtension] stringByAppendingPathExtension: @"pdfsync"];
 	if (![fileManager fileExistsAtPath: infoFile])
 		return;
-	
+
 /*
 	// worry that the user has tex + ghostscript and the sync file is out of date
 	// to do that, test the date of mydoc.pdf and mydoc.pdfsync
@@ -6683,9 +7613,9 @@ if (! useFullSplitWindow) {
 			expectedString = [expectedString stringByAppendingString:expectedFileName];
 		} else
 			return;
-		
+
 		myRange = [syncInfo rangeOfString: expectedString];
-		
+
 		if (myRange.location == NSNotFound) {
 			expectedString = @"(./";
 			expectedString = [expectedString stringByAppendingString:expectedFileName];
@@ -6693,16 +7623,16 @@ if (! useFullSplitWindow) {
 			if (myRange.location == NSNotFound)
 				return;
 		}
-		
+
 		NS_DURING
 			[syncInfo getLineStart: &start end: &end contentsEnd: nil forRange: myRange];
 		NS_HANDLER
 			return;
 		NS_ENDHANDLER
 		syncInfo = [syncInfo substringFromIndex: end];
-		
+
 		// now search for matching ')'
-		
+
 		stringlength = [syncInfo length];
 		myRange.location = 0;
 		myRange.length = 1;
@@ -6728,10 +7658,10 @@ if (! useFullSplitWindow) {
 				found = YES;
 			myRange.location = end;
 		}
-		
+
 		if (!found)
 			return;
-		
+
 		myRange.length = myRange.location;
 		myRange.location = 0;
 		syncInfo = [syncInfo substringWithRange: myRange];
@@ -6771,7 +7701,7 @@ if (! useFullSplitWindow) {
 			newRange.length = end - start;
 			keyLine = [syncInfo substringWithRange: newRange];
 			// NSLog(keyLine);
-			
+
 			searchResultRange = [keyLine rangeOfCharacterFromSet: [NSCharacterSet decimalDigitCharacterSet]];
 			if (searchResultRange.location == NSNotFound)
 				return;
@@ -6781,7 +7711,7 @@ if (! useFullSplitWindow) {
 			//  NSLog(keyLine);
 			// NSLog(@" ");
 			syncNumber = [keyLine integerValue]; // number of entry
-			
+
 			searchResultRange = [keyLine rangeOfString: @" "];
 			if (searchResultRange.location == NSNotFound)
 				return;
@@ -6802,32 +7732,32 @@ if (! useFullSplitWindow) {
 		myRange.location = end;
 	}
 
-	
+
 	if (!synclineFound)
 		return;
-	
-	
+
+
 	// now syncNumber is the entry number of the item we want. We must next find the
 	// entry "p syncNumber * *". This number will follow a page number, "s pageNumber"
 	// and this pageNumber is the number we want
-	
+
 	// the technique is to go through the .pdfsync file line by line. If a line starts with "s" we
 	// record that page number. If a line starts with "p number *  *" or "p* number * *" we see if number = syncNumber.
 	// If so, then the current page number is the one we want. If we don't find it, we just return
-	
+
 	// But if the entry comes at the start of the file, it will not follow a page number.
 	// So we must search for the first page in the syncInfo file and then back up one page
-	
+
 	// Debugging has caused me to discover that some "l" lines in the pdfsync file have no matching
 	// "p" lines. So this code starts with an "l" line with a given syncNumber, and then iterates
 	// the search 20 times with higher and higher syncNumbers before giving up
-	
+
 	NS_DURING
     syncInfo = [NSString stringWithContentsOfFile:infoFile usedEncoding: &theEncoding error:NULL];
 	NS_HANDLER
 		return;
 	NS_ENDHANDLER
-	
+
 	// remove the first two lines
 	myRange.location = 0;
 	myRange.length = 1;
@@ -6843,8 +7773,8 @@ if (! useFullSplitWindow) {
 		return;
 	NS_ENDHANDLER
 	syncInfo = [syncInfo substringFromIndex: end];
-	
-	
+
+
 	found = NO;
 	NSInteger i = 0;
 	while (!found && (i < 20)) {
@@ -6917,7 +7847,7 @@ if (! useFullSplitWindow) {
 	NSArray				*myPages;
 	PDFPage				*thePage;
 	NSRect				selectionBounds;
-	
+
 	 [self.myPDFKitView cancelSearch];
 
 // I now try a new method. We will pick a string of length 10, first surrounding the text where
@@ -6963,7 +7893,7 @@ if (! useFullSplitWindow) {
 				return NO;
 			thePage = [myPages objectAtIndex:0];
 			selectionBounds = [mySelection boundsForPage: thePage];
-			
+
 			[(MyPDFKitView *)self.pdfKitWindow.activeView setIndexForMark: [[self.myPDFKitView document] indexForPage: thePage]];
 			[(MyPDFKitView *)self.pdfKitWindow.activeView setBoundsForMark:selectionBounds];
 			[(MyPDFKitView *)self.pdfKitWindow.activeView setDrawMark: YES];
@@ -6973,7 +7903,7 @@ if (! useFullSplitWindow) {
 			[self.pdfKitWindow.activeView setCurrentSelection: nil];
 			[self.pdfKitWindow.activeView display];
 			[self.pdfKitWindow makeKeyAndOrderFront:self];
-			
+
 			/*
 			[self.pdfKitWindow.activeView setIndexForMark: [[self.myPDFKitView document] indexForPage: thePage]];
 			[self.pdfKitWindow.activeView setBoundsForMark: selectionBounds];
@@ -7018,7 +7948,7 @@ if (! useFullSplitWindow) {
 			thePage = [myPages objectAtIndex:0];
 			selectionBounds = [mySelection boundsForPage: thePage];
 			// replace "myPDFKitView" below by "[myPDFKitWindow activeView]"
-			
+
 			[(MyPDFKitView *)self.pdfKitWindow.activeView setIndexForMark: [[self.myPDFKitView document] indexForPage: thePage]];
 			[(MyPDFKitView *)self.pdfKitWindow.activeView setBoundsForMark:selectionBounds];
 			[(MyPDFKitView *)self.pdfKitWindow.activeView setDrawMark: YES];
@@ -7029,7 +7959,7 @@ if (! useFullSplitWindow) {
 			[self.pdfKitWindow.activeView display];
             if (! useFullSplitWindow)
                 [self.pdfKitWindow makeKeyAndOrderFront:self];
-			
+
 			/*
 			[self.pdfKitWindow.activeView setIndexForMark: [[self.myPDFKitView document] indexForPage: thePage]];
 			[self.pdfKitWindow.activeView setBoundsForMark: selectionBounds];
@@ -7037,7 +7967,7 @@ if (! useFullSplitWindow) {
 			[self.pdfKitWindow.activeView goToPage: thePage];
 			[self.pdfKitWindow.activeView display];
 			*/
-			
+
 			return YES;
 		}
 	}
@@ -7060,19 +7990,19 @@ if (! useFullSplitWindow) {
 	BOOL			front;
 
 	pdfPath = [[[[self fileURL] path] stringByDeletingPathExtension] stringByAppendingPathExtension:@"pdf"];
-	
-	// Check whether a PDF version of this document exists 
+
+	// Check whether a PDF version of this document exists
 	if ([[NSFileManager defaultManager] fileExistsAtPath: pdfPath] && [[NSFileManager defaultManager] isReadableFileAtPath: pdfPath]) {
 		// The PDF exists. Now check whether its modification date changed.
 		myAttributes = [[NSFileManager defaultManager] attributesOfItemAtPath: pdfPath error:NULL];
 		newDate = [myAttributes objectForKey:NSFileModificationDate];
 		if ((self.pdfLastModDate == nil) || ([newDate compare:self.pdfLastModDate] == NSOrderedDescending) || _pdfRefreshTryAgain) {
-			
+
 			_pdfRefreshTryAgain = NO;
 //			[newDate retain];
 //			[self.pdfLastModDate release];
 			self.pdfLastModDate = newDate;
-			
+
 			front = [SUD boolForKey: BringPdfFrontOnAutomaticUpdateKey];
 			[self refreshPDFAndBringFront: front];
 		}
@@ -7086,7 +8016,7 @@ if (! useFullSplitWindow) {
 {
 	NSPDFImageRep	*tempRep;
 	NSString		*pdfPath;
-	
+
 	pdfPath = [[[[self fileURL] path] stringByDeletingPathExtension] stringByAppendingPathExtension:@"pdf"];
 
 	if ([[NSFileManager defaultManager] fileExistsAtPath: pdfPath]) {
@@ -7109,7 +8039,7 @@ if (! useFullSplitWindow) {
 				[[NSApplication sharedApplication] activateIgnoringOtherApps: YES];
 				[self.pdfKitWindow makeKeyAndOrderFront: self];
 			}
-			
+
 		}
 	}
 }
@@ -7175,7 +8105,7 @@ if (! useFullSplitWindow) {
     NSRange             mainRange;
     NSString            *lineNumberString, *loopString;
     NSInteger           mainOffset;
-    
+
     NSString    *myPath = [[self fileURL] path];
     NSString    *logPath = [[myPath stringByDeletingPathExtension] stringByAppendingPathExtension:@"log"];
     NSString    *logContents = [NSString stringWithContentsOfFile:logPath encoding:theEncoding error:&error];
@@ -7183,7 +8113,7 @@ if (! useFullSplitWindow) {
         logContents = [NSString stringWithContentsOfFile:logPath encoding:NSISOLatin9StringEncoding error:&error];
     if (logContents == nil)
         return;
-    
+
     /*
         mainRange = [logContents rangeOfString: @"Start of main material:"];
         if (mainRange.location != NSNotFound)
@@ -7194,7 +8124,7 @@ if (! useFullSplitWindow) {
                 self.numberingCorrection = mainOffset - 1;
         }
      */
-    
+
     loopString = logContents;
 
     if (self.automaticCorrection)
@@ -7213,9 +8143,9 @@ if (! useFullSplitWindow) {
       while
           (mainRange.location != NSNotFound);
 }
-    
-    
- 
+
+
+
 
 - (void) writeTexOutput: (NSNotification *)aNotification
 {
@@ -7242,20 +8172,20 @@ if (! useFullSplitWindow) {
                 NSNumber    *theNumber;
                 NSString    *theNumberString, *theLine;
                 NSString    *searchText, *lineNumberString;
-                
-                
+
+
 
                 // theEncoding = [[TSEncodingSupport sharedInstance] defaultEncoding];
             theEncoding = _encoding;
             newOutput = [[NSString alloc] initWithData: myData encoding: theEncoding];
-            
+
             // 1.35 (F) fix --- suggested by Kino-san
             if (newOutput == nil) {
                 newOutput = [[NSString alloc] initWithData: myData encoding: NSISOLatin9StringEncoding];
             }
-            
+
                 loopString = newOutput;
-            
+
           if (self.automaticCorrection)
              do
              {
@@ -7271,11 +8201,11 @@ if (! useFullSplitWindow) {
              }
             while
                  (mainRange.location != NSNotFound);
-          
-                
-                
-                
-            
+
+
+
+
+
             myLength = [newOutput length];
             testRange.location = [newOutput length] - 2;
             testRange.length = 1;
@@ -7296,12 +8226,12 @@ if (! useFullSplitWindow) {
                         error = [numberOutput integerValue];
                         if ((error > 0) && (self->errorNumber < NUMBEROFERRORS)) {
                             self->errorLine[self->errorNumber] = error;
-                            
+
                             // new code to find text just before error
                             if (self->errorText[self->errorNumber] != nil)
                 //                [errorText[errorNumber] release];
                             self->errorText[self->errorNumber] = nil;
-                            
+
                             searchDotsRange = [numberOutput rangeOfString: @"..."];
                             if (searchDotsRange.location == NSNotFound) {
                                 searchDotsRange = [numberOutput rangeOfString: @" "];
@@ -7316,14 +8246,14 @@ if (! useFullSplitWindow) {
                                 if (searchText != nil)
                                     self->errorText[self->errorNumber]  = searchText ;
                             }
-                                
-                            
+
+
                             // new code to find file containing error
                             // ----------
                     //        if (errorLinePath[errorNumber] != nil)
                     //            [errorLinePath[errorNumber] release];
                             self->errorLinePath[self->errorNumber] = nil;
-                            
+
                             theNumber = [NSNumber numberWithInteger:error];
                             theNumberString = [theNumber stringValue];
                             theLine = [[@":" stringByAppendingString: theNumberString] stringByAppendingString: @":"];
@@ -7337,7 +8267,7 @@ if (! useFullSplitWindow) {
                             }
                             // end of new code
                             // -----------
-                            
+
                             self->errorNumber++;
                             [self->outputWindow performSelectorOnMainThread:@selector(makeKeyAndOrderFront:)
                                                                 withObject:self waitUntilDone:NO];
@@ -7368,9 +8298,9 @@ if (! useFullSplitWindow) {
         if ([texloganalyserData length]) {
             texloganalyserString = [[NSString alloc] initWithData: texloganalyserData encoding: NSISOLatin9StringEncoding];
             // NSLog(texloganalyserString);
-            
+
             // [self.logTextView insertText: texloganalyserString];
-            
+
             NSRange theRange = [self.logTextView selectedRange];
             theRange.length = [texloganalyserString length];
             [self.logTextView replaceCharactersInRange: [self.logTextView selectedRange] withString: texloganalyserString];
@@ -7378,17 +8308,17 @@ if (! useFullSplitWindow) {
              // [self.texloganalyserHandle readInBackgroundAndNotify];
             [self.texloganalyserHandle waitForDataInBackgroundAndNotify];
         }
-        
-        
-        
-        
-        
-        
-        
+
+
+
+
+
+
+
     }
-    
-   
-    
+
+
+
     else if (myFileHandle == self.detexHandle) {
         // detexData = [[aNotification userInfo] objectForKey:@"NSFileHandleNotificationDataItem"];
         detexData = [self availableDataOrError: myFileHandle];
@@ -7416,8 +8346,8 @@ if (! useFullSplitWindow) {
             }
     }
 }
-    
-    
+
+
 
 
 
@@ -7518,19 +8448,19 @@ if (! useFullSplitWindow) {
 // added by Terada (- (void) openStyleFile:)
 - (void) openStyleFile: (id)sender
 {
-	
+
 	NSSize dialogSize = NSMakeSize(340, 120);
 	NSRect dialogRect = NSMakeRect(0, 0, dialogSize.width, dialogSize.height);
-	
+
 	NSWindow *dialog = [[[NSWindow alloc] initWithContentRect:dialogRect
 													styleMask:(NSTitledWindowMask|NSResizableWindowMask)
-													  backing:NSBackingStoreBuffered 
+													  backing:NSBackingStoreBuffered
 														defer:NO] autorelease];
 	[dialog setFrame:dialogRect display:NO];
 	[dialog setMinSize:NSMakeSize(250, dialogSize.height)];
 	[dialog setMaxSize:NSMakeSize(10000, dialogSize.height)];
 	[dialog setTitle:NSLocalizedString(@"Input Stylefile Name to Open", @"Input Stylefile Name to Open")];
-	
+
 	NSTextField *input = [[[NSTextField alloc] init] autorelease];
 	[input setFrame:NSMakeRect(17, 54, dialogSize.width - 40, 25)];
 	NSString *lastStyName = [SUD stringForKey:LastStyNameKey];
@@ -7538,7 +8468,7 @@ if (! useFullSplitWindow) {
 	[input setStringValue:lastStyName];
 	[input setAutoresizingMask:NSViewWidthSizable];
 	[[dialog contentView] addSubview:input];
-	
+
 	NSButton* cancelButton = [[[NSButton alloc] init] autorelease];
 	[cancelButton setTitle:NSLocalizedString(@"Cancel", @"Cancel")];
 	[cancelButton setFrame:NSMakeRect(dialogSize.width - 206, 12, 96, 32)];
@@ -7548,7 +8478,7 @@ if (! useFullSplitWindow) {
 	[cancelButton setTarget:self];
 	[cancelButton setAction:@selector(dialogCancel:)];
 	[[dialog contentView] addSubview:cancelButton];
-	
+
 	NSButton* okButton = [[[NSButton alloc] init] autorelease];
 	[okButton setTitle:@"OK"];
 	[okButton setFrame:NSMakeRect(dialogSize.width - 110, 12, 96, 32)];
@@ -7558,14 +8488,14 @@ if (! useFullSplitWindow) {
 	[okButton setTarget:self];
 	[okButton setAction:@selector(dialogOk:)];
 	[[dialog contentView] addSubview:okButton];
-	
+
 	BOOL returnCode = [NSApp runModalForWindow:dialog];
     [dialog orderOut:self];
-	
+
 	if(returnCode){
 		NSString* cd = [[self fileName] stringByDeletingLastPathComponent];
 		cd = cd ? [NSString stringWithFormat:@"cd \"%@\";", cd] : @"";
-		
+
 		NSString* kpsetool = [SUD objectForKey:KpsetoolKey];
 		if(!kpsetool || [kpsetool isEqualToString:@""]){
 			kpsetool = @"kpsetool -w -n latex tex";
@@ -7573,10 +8503,10 @@ if (! useFullSplitWindow) {
 		NSString* target = [input stringValue];
 		[SUD setObject:target forKey:LastStyNameKey];
 		NSString* cmdLine = [NSString stringWithFormat:@"%@ PATH=%@:$PATH; open `%@ \"%@\"`", cd, [[SUD stringForKey:TetexBinPath] stringByExpandingTildeInPath], kpsetool, target];
-		
+
 		char str[1024];
 		FILE *fp;
-		
+
 		if((fp=popen([[cmdLine stringByAppendingString:@" >/dev/null 2>&1"] UTF8String], "r")) == NULL){
 			NSBeep();
 			NSRunAlertPanel(NSLocalizedString(@"Error", @"Error"), @"An error has occurred.", @"OK", nil, nil);
@@ -7606,7 +8536,7 @@ if (! useFullSplitWindow) {
 */
 
 // added by Terada (- (void) setAutoCompleting:)
-- (void) setAutoCompleting:(BOOL)flag 
+- (void) setAutoCompleting:(BOOL)flag
 {
 	autoCompleting = flag;
 }
@@ -7619,9 +8549,9 @@ if (! useFullSplitWindow) {
     NSRange selectedRange = [aView selectedRange];
     NSString *selectedString = [[aView string] substringWithRange:selectedRange];
     TSGlyphPopoverController *popoverController = [[TSGlyphPopoverController alloc] initWithCharacter:selectedString];
-    
+
     if (!popoverController) { return; }
-    
+
     @try {
     NSRange glyphRange = [[aView layoutManager] glyphRangeForCharacterRange:selectedRange actualCharacterRange:NULL];
     NSRect selectedRect = [[aView layoutManager] boundingRectForGlyphRange:glyphRange inTextContainer:[aView textContainer]];
@@ -7629,7 +8559,7 @@ if (! useFullSplitWindow) {
     selectedRect.origin.x += containerOrigin.x;
     selectedRect.origin.y += containerOrigin.y - 6.0;
     selectedRect = [aView convertRectToLayer:selectedRect];
-    
+
     [popoverController showPopoverRelativeToRect:selectedRect ofView:aView];
     [aView showFindIndicatorForRange:selectedRange];
     }
@@ -7664,7 +8594,7 @@ if (! useFullSplitWindow) {
 - (void) flipIndexColorState: sender
 {
     NSInteger   theState;
-    
+
     if (useFullSplitWindow)
         theState = [(NSCell *)indexColorSplitBox state];
     else
@@ -7684,31 +8614,31 @@ if (! useFullSplitWindow) {
 }
 
 - (IBAction)toggleSyntaxColor:sender {
-    
+
      self.syntaxColor = ! self.syntaxColor;
     [sender setState: self.syntaxColor];
-        
+
     [self reColor:nil];
-    
+
 }
 
 - (IBAction)toggleExplColor:sender {
-    
+
      self.useExplColor = ! self.useExplColor;
     [sender setState: self.useExplColor];
-        
+
   if (self.syntaxColor)
       [self reColor:nil];
-    
+
 }
 
 - (IBAction)toggleSyntaxColorEntry:sender {
-    
+
      self.syntaxcolorEntry = ! self.syntaxcolorEntry;
     [sender setState: self.syntaxcolorEntry];
     if ((self.blockCursor) && (! self.syntaxcolorEntry))
        self.blockCursor = NO;
-   
+
     if (self.syntaxcolorEntry)
         [self cursorMoved: textView];
     else
@@ -7719,7 +8649,7 @@ if (! useFullSplitWindow) {
 }
 
 - (IBAction)toggleBlockCursor:sender {
-    
+
     self.blockCursor = ! self.blockCursor;
     [sender setState: self.blockCursor];
     if ((self.blockCursor) && (! self.syntaxcolorEntry))
@@ -7781,7 +8711,7 @@ if (! useFullSplitWindow) {
 {
     NSMenu *sourceMenu;
     NSMenuItem *explMenu;
-    
+
     sourceMenu = [[[NSApp mainMenu] itemWithTitle:NSLocalizedString(@"Source", @"Source")] submenu];
     if (sourceMenu) {
         explMenu = [sourceMenu itemWithTitle:NSLocalizedString(@"Syntax Color expl3 Code", @"Syntax Color expl3 Code")];
@@ -7816,27 +8746,35 @@ if (! useFullSplitWindow) {
 
 // BibDesk Completion; Adam Maxwell
 
+- (NSArray *)bibliographyCompletionsForSearchString:(NSString *)searchString
+{
+    if (self.bibliographyCompletionCache == nil)
+        self.bibliographyCompletionCache = [[TSBibliographyCompletionCache alloc] initWithOwner:self];
+
+    return [(TSBibliographyCompletionCache *)self.bibliographyCompletionCache completionStringsForSearchString:searchString];
+}
+
 /*
  - (NSConnection *)completionConnection{
- 
+
 	return self.completionConnection;
  }
- 
+
  - (void)setCompletionConnection:(NSConnection *)completionConnection{
-	
+
 	self.completionConnection = completionConnection;
 	}
  */
 
 /*
  - (id)completionServer{
- 
+
 	return self.completionServer;
 }
 
 
  - (void)setCompletionServer:(id)completionServer{
-	
+
 	self.completionServer = completionServer;
 }
 */
@@ -7850,6 +8788,11 @@ if (! useFullSplitWindow) {
     self.completionConnection = nil;
  //   [self.completionServer release];
     self.completionServer = nil;
+
+    if (self.bibliographyCompletionCache != nil) {
+        [(TSBibliographyCompletionCache *)self.bibliographyCompletionCache invalidate];
+        self.bibliographyCompletionCache = nil;
+    }
 }
 
 - (void)registerForConnectionDidDieNotification
@@ -7868,8 +8811,10 @@ if (! useFullSplitWindow) {
 
 - (void)changePrefBibDeskComplete:(NSNotification *)notification
 {
-	if (! [SUD boolForKey:BibDeskCompletionKey])
-		[self invalidateCompletionConnection];
+    if (self.bibliographyCompletionCache != nil) {
+        [(TSBibliographyCompletionCache *)self.bibliographyCompletionCache invalidate];
+        self.bibliographyCompletionCache = nil;
+    }
 }
 
 // End BibDesk Completion
@@ -7886,7 +8831,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSUInteger numberGlyphs;
 
     numberGlyphs = [font numberOfGlyphs];
-    if (' ' < numberGlyphs) { 
+    if (' ' < numberGlyphs) {
 // 	if ([font glyphIsEncoded:(NSGlyph)' ']) {
 		charWidth = [font advancementForGlyph:(NSGlyph)' '].width;
 	} else {
@@ -7917,7 +8862,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
     NSFont		*	font		= nil;
 	NSData		*	fontData;
-    
+
     if ([SUD boolForKey:SaveDocumentFontKey] == NO) {
         font = [NSFont userFontOfSize:12.0];
 	} else {
@@ -7928,44 +8873,44 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 		} else
             font = [NSFont userFontOfSize:12.0];
 	}
-    
-	
+
+
     CGFloat                     interlinespace      = [SUD floatForKey: SourceInterlineSpaceKey];
     CGFloat                     myFirstLineHeadIndent = [SUD floatForKey: SourceFirstLineHeadIndentKey];
     CGFloat                     myHeadIndent          = [SUD floatForKey: SourceHeadIndentKey];
-    
+
 	NSUInteger					tabWidth			= [SUD integerForKey: tabsKey];
 	NSUInteger					textStorageLength	= [_textStorage length];
     NSArray					*	desiredTabStops		= tabStopArrayForFontAndTabWidth(font, tabWidth);
 	NSParagraphStyle 		*	paraStyle			= [NSParagraphStyle defaultParagraphStyle];
     NSMutableParagraphStyle	*	newStyle			= [paraStyle mutableCopy] ;
-    
+
     if (interlinespace < 0.5)
         interlinespace = 1.0;
     if (interlinespace < 0.0)
         interlinespace = 0.0;
     if (interlinespace > 40.0)
         interlinespace = 1.0;
-	
+
 	[newStyle setTabStops:desiredTabStops];
     [newStyle setLineSpacing: interlinespace];
     newStyle.firstLineHeadIndent = myFirstLineHeadIndent;
     newStyle.headIndent = myHeadIndent;
-    
+
 	if (textStorageLength)
 		[_textStorage addAttribute:NSParagraphStyleAttributeName value:newStyle range:NSMakeRange(0, textStorageLength)];
-		
+
 	// Warning: the next six lines are needed to insure that new text added at the start of a line
 	// does not revert back to the old tab style
-		
+
 	NSMutableDictionary *theTypingAttributes = [[NSMutableDictionary alloc] initWithCapacity:1] ;
 	[theTypingAttributes setObject:newStyle forKey:NSParagraphStyleAttributeName];
 	[textView1 setTypingAttributes:theTypingAttributes];
-	
+
 	NSMutableDictionary *theTypingAttributes2 = [[NSMutableDictionary alloc] initWithCapacity:1];
 	[theTypingAttributes2 setObject:newStyle forKey:NSParagraphStyleAttributeName];
 	[textView2 setTypingAttributes:theTypingAttributes2];
-        
+
 	[textView1 setFontSafely:font];
 	[textView1 setDefaultParagraphStyle: newStyle];
 	[textView2 setFontSafely:font];
@@ -7997,13 +8942,13 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
 - (IBAction) saveAnnotations: sender;
 {
-    
+
     [self.myPDFKitView saveAnnotations:sender];
 }
 
 - (IBAction) callSaveAnnotations;
 {
-    
+
     [self.myPDFKitView callSaveAnnotations];
 }
 
@@ -8092,27 +9037,27 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	NSString *oldString, *newString;
 
 	autoCompleting = YES; // added by Terada
-	
+
 	// mutably copy the replacement text
 	stringBuf = [NSMutableString stringWithString: theString];
-	
+
 	// Determine the curent selection range and text
 	oldRange = [textView selectedRange];
 	oldString = [[textView string] substringWithRange: oldRange];
-	
+
 	// Substitute all occurances of #SEL# with the original text
 	[stringBuf replaceOccurrencesOfString: @"#SEL#" withString: oldString
 								  options: 0 range: NSMakeRange(0, [stringBuf length])];
-	
+
 	// Now search for #INS#, remember its position, and remove it. We will
 	// Later position the insertion mark there. Defaults to end of string.
 	searchRange = [stringBuf rangeOfString:@"#INS#" options:NSLiteralSearch];
 	if (searchRange.location != NSNotFound)
 		[stringBuf replaceCharactersInRange:searchRange withString:@""];
-	
+
 	// Filtering for Japanese
 	newString = [self filterBackslashes:stringBuf];
-	
+
 	// Replace the text--
 	// Follow Apple's guideline "Subclassing NSTextView/Notifying About Changes to the Text"
 	// in "Text System User Interface Layer".
@@ -8121,10 +9066,10 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	if ([textView shouldChangeTextInRange:oldRange replacementString:newString]) {
 		[textView replaceCharactersInRange:oldRange withString:newString];
 		[textView didChangeText];
-		
+
 		if (key)
 			[[textView undoManager] setActionName: key];
-		
+
 		// Place insertion mark
 		if (searchRange.location != NSNotFound) {
 			searchRange.location += oldRange.location;
@@ -8254,7 +9199,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	unsigned		start, end, end1, changeStart, changeEnd;
 	int			theChar = 0;
 	NSString	*theCommand = 0;
-	
+
 	text = [textView string];
 	myRange = [textView selectedRange];
 	// the next line fixes a bug where nothing is commented out if the cursor is at the start of a line
@@ -8266,7 +9211,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	oldRange.location = start;
 	oldRange.length = end1 - start;
 	oldString = [[textView string] substringWithRange: oldRange];
-	
+
 	changeStart = start;
 	changeEnd = start;
 	end = start;
@@ -8277,7 +9222,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 		changeEnd = end1;
 		if ((end1 - start) > 0)
 			theChar = [text characterAtIndex: start];
-		
+
 		switch (tag) {
 			case Mcomment:
 				tempRange.location = start;
@@ -8289,7 +9234,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 				end++;
 				theCommand = NSLocalizedString(@"Comment", @"Comment");
 				break;
-				
+
 			case Muncomment:
 				if ((end1 != start) && (theChar == '%')) {
 					tempRange.location = start;
@@ -8302,7 +9247,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 					theCommand = NSLocalizedString(@"Uncomment", @"Uncomment");
 				}
 				break;
-				
+
 			case Mindent:
 				tempRange.location = start;
 				tempRange.length = 0;
@@ -8313,7 +9258,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 				end++;
 				theCommand = NSLocalizedString(@"Indent", @"Indent");
 				break;
-				
+
 			case Munindent:
 			 	if ((end1 != start) && (theChar == '\t')) {
 					tempRange.location = start;
@@ -8326,11 +9271,11 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 					theCommand = NSLocalizedString(@"Unindent", @"Unindent");
 				}
 				break;
-				
+
 		}
 		end++;
 	}
-	
+
 	if (!theCommand)
 		return;	// If no change was made, do nothing (see bug #1488597).
 
@@ -8338,13 +9283,13 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	tempRange.location = changeStart;
 	tempRange.length = (changeEnd - changeStart);
 	[textView setSelectedRange: tempRange];
-	
+
 	[self registerUndoWithString:oldString location:oldRange.location
 						  length:oldRange.length key: theCommand];
 }
 
 // end mitsu 1.29
- 
+
 */
 
 // mitsu 1.29 (T3)//rewritten Scott Lambert 3/1/2010
@@ -8357,22 +9302,22 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	NSUInteger	blockStart, blockEnd, lineStart, lineContentsEnd, lineEnd;
 	NSInteger			theChar = 0;
 	NSString	*theCommand = 0;
-	
-	
+
+
 	text = [textView string];
     NSRange oldRange = [textView selectedRange]; // added by Terada
     NSInteger increment = 0; // added by Terada
-    
+
 	//Expand the selectedRange to include whole lines
 	[text getLineStart:&blockStart end:&blockEnd contentsEnd:NULL forRange:[textView selectedRange]];
-	
+
 	//Save the oldString for undo
 	modifyRange.location = blockStart;
 	modifyRange.length = (blockEnd - blockStart);
 	oldString = [[textView string] substringWithRange: modifyRange];
-	
+
 	lineStart=blockStart;
-	//We want to make at least one attempt at modifying. 
+	//We want to make at least one attempt at modifying.
 	//This matters only the selection is empty and the cursor is on the last line of the file which happens to be blank.
 	do {
 		modifyRange.location=lineStart;
@@ -8387,7 +9332,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 increment++; // added by Terada
 				theCommand = NSLocalizedString(@"Comment", @"Comment");
 				break;
-				
+
 			case Muncomment:
 				if (lineStart<lineContentsEnd)
 					theChar=[text characterAtIndex:lineStart];
@@ -8401,7 +9346,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 					theCommand = NSLocalizedString(@"Uncomment", @"Uncomment");
 				}
 				break;
-				
+
 			case Mindent:
 				[textView replaceCharactersInRange:modifyRange withString:@"\t"];
 				blockEnd++;
@@ -8409,7 +9354,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 increment++; // added by Terada
 				theCommand = NSLocalizedString(@"Indent", @"Indent");
 				break;
-				
+
 			case Munindent:
 				if (lineStart<lineContentsEnd)
 					theChar=[text characterAtIndex:lineStart];
@@ -8425,15 +9370,15 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 		};
 		lineStart=lineEnd;
 	} while (lineStart<blockEnd);
-	
+
 	if (!theCommand)
 		return;	// If no change was made, do nothing (see bug #1488597).
-	
+
 	[self fixColor:blockStart :blockEnd];
 	modifyRange.location = blockStart;
 	modifyRange.length = (blockEnd - blockStart);
 	[textView setSelectedRange: modifyRange];
-	
+
 	[self registerUndoWithString:oldString location:modifyRange.location
 						  length:modifyRange.length key: theCommand];
 
@@ -8460,20 +9405,20 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSString    *theCommand = 0;
     NSUInteger  tabWidth, i;
     NSString    *indentString;
-    
+
     text = [textView string];
     NSRange oldRange = [textView selectedRange];
-    
-    
+
+
     //Expand the selectedRange to include whole lines
     [text getLineStart:&blockStart end:&blockEnd contentsEnd:NULL forRange:[textView selectedRange]];
     tabWidth = [SUD integerForKey: tabsKey];
-    
+
     //Save the oldString for undo
     modifyRange.location = blockStart;
     modifyRange.length = (blockEnd - blockStart);
     oldString = [[textView string] substringWithRange: modifyRange];
-    
+
     lineStart = blockStart;
     BOOL firstLine = YES;
     BOOL fixRangeStart = NO;
@@ -8492,7 +9437,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 increment++;
                 theCommand = NSLocalizedString(@"Comment", @"Comment");
                 break;
-                
+
             case Muncomment:
                 if (lineStart<lineContentsEnd)
                     theChar = [text characterAtIndex:lineStart];
@@ -8513,7 +9458,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                     fixRangeStart = YES;
                 }
                 break;
-                
+
             // The routine below was modified to use spaces rather than tabs.
             case Mindent:
                 indentString = @"";
@@ -8528,10 +9473,10 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 blockEnd = blockEnd + tabWidth;
                 lineEnd = lineEnd + tabWidth;
                 increment = increment + tabWidth;
-                
+
                 theCommand = NSLocalizedString(@"Indent", @"Indent");
                 break;
-                
+
             // The routine below was modified to use spaces rather than tabs.
             // When reading the code, notice that "text" is OUR COPY of the original text
             // while "[textView ...]" affects the actual source text; these objects are not
@@ -8544,7 +9489,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                     break;
                 }
                 else break;
-                
+
                 if (theChar == ' ') {
                     modifyRange.location = lineStart;
                     modifyRange.length = 1;
@@ -8584,18 +9529,18 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         lineStart = lineEnd;
         firstLine = NO;
     } while (lineStart < blockEnd);
-    
+
     if (!theCommand)
         return; // If no change was made, do nothing (see bug #1488597).
-    
+
     [self fixColor:blockStart :blockEnd];
     modifyRange.location = blockStart;
     modifyRange.length = (blockEnd - blockStart);
     [textView setSelectedRange: modifyRange];
-    
+
     [self registerUndoWithString:oldString location:modifyRange.location
                           length:modifyRange.length key: theCommand];
-    
+
     rangeIncrement = increment + ((increment > 0) ? (-1) : 1);
     if(fixRangeStart){
         rangeIncrement--;
@@ -8603,9 +9548,9 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         oldRange.location += (increment > 0) ? 1 : -1;
     }
     if(!(oldRange.length == 0 && rangeIncrement < 0)) oldRange.length += rangeIncrement;
-    
+
     [textView setSelectedRange: oldRange];
-    
+
     // we now fix the selected range, which was sometimes one or two of
     text = [textView string];
     [text getLineStart:&blockStart end:&blockEnd contentsEnd:NULL forRange:[textView selectedRange]];
@@ -8627,23 +9572,23 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSString    *theCommand = 0;
     NSUInteger  tabWidth, i;
     NSString    *indentString;
-    
+
     text = [textView string];
     NSRange oldRange = [textView selectedRange];
-    
- 
+
+
     //Expand the selectedRange to include whole lines
     [text getLineStart:&blockStart end:&blockEnd contentsEnd:NULL forRange:[textView selectedRange]];
     tabWidth = [SUD integerForKey: tabsKey];
-    
- 
- 
+
+
+
     //Save the oldString for undo
     modifyRange.location = blockStart;
     modifyRange.length = (blockEnd - blockStart);
     oldString = [[textView string] substringWithRange: modifyRange];
 
-    
+
     lineStart = blockStart;
     BOOL firstLine = YES;
     BOOL fixRangeStart = NO;
@@ -8662,7 +9607,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 increment++;
                 theCommand = NSLocalizedString(@"Comment", @"Comment");
                 break;
-                
+
             case Muncomment:
                 if (lineStart<lineContentsEnd)
                     theChar = [text characterAtIndex:lineStart];
@@ -8683,13 +9628,13 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                     fixRangeStart = YES;
                 }
                 break;
-                
+
             case Mindent:
                 indentString = @"";
                 if (tabWidth > 0)
                     for (i = 1; i <= tabWidth; i++)
                         indentString = [indentString stringByAppendingString: @" "];
-                
+
                 if([SUD boolForKey:TabIndentKey]){
                     [textView replaceCharactersInRange:modifyRange withString:@"\t"];
                     blockEnd++;
@@ -8701,10 +9646,10 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                     lineEnd = lineEnd + tabWidth;
                     increment = increment + tabWidth;
                 }
-                
+
                 theCommand = NSLocalizedString(@"Indent", @"Indent");
                 break;
-                
+
              case Munindent:
                 if (lineStart < lineContentsEnd)
                     theChar = [text characterAtIndex:lineStart];
@@ -8713,7 +9658,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                     break;
                 }
                 else break;
-                
+
                 if (![SUD boolForKey:TabIndentKey] && theChar == ' ') {
                     // remove leading spaces -- at most "tabWidth" of them
                     modifyRange.location = lineStart;
@@ -8745,19 +9690,19 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         lineStart = lineEnd;
         firstLine = NO;
     } while (lineStart < blockEnd);
-    
+
     if (!theCommand)
         return; // If no change was made, do nothing (see bug #1488597).
-    
+
     [self fixColor:blockStart :blockEnd];
     modifyRange.location = blockStart;
     modifyRange.length = (blockEnd - blockStart);
     [textView setSelectedRange: modifyRange];
-    
+
     [self registerUndoWithString:oldString location:modifyRange.location
                           length:modifyRange.length key: theCommand];
 
-    
+
     rangeIncrement = increment + ((increment > 0) ? (-1) : 1);
     if(fixRangeStart){
         rangeIncrement--;
@@ -8766,17 +9711,17 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     }
     if(!(oldRange.length == 0 && rangeIncrement < 0))
         oldRange.length += rangeIncrement;
-    
-    
+
+
     [textView setSelectedRange: oldRange];
-    
+
     // we now fix the selected range, which was sometimes one or two of
     text = [textView string];
     [text getLineStart:&blockStart end:&blockEnd contentsEnd:NULL forRange:[textView selectedRange]];
     modifyRange.location = blockStart;
     modifyRange.length = (blockEnd - blockStart);
     [textView setSelectedRange: modifyRange];
-    
+
 }
 
 // end mitsu 1.29 // end rewritten Scott Lambert 3/1/2010 // end rewritten Terada 2012
@@ -8787,16 +9732,16 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 - (void)trashAUXFiles: sender
 {
 	NSString        *theSource;
-    
+
 	aggressiveTrash = NO;
 	if ((GetCurrentKeyModifiers() & optionKey) != 0)
 		aggressiveTrash = YES;
 	if ([SUD boolForKey:AggressiveTrashAUXKey])
 		aggressiveTrash = YES;
-	
+
 	if (! fileIsTex)
 		return;
-	
+
 	if (! [SUD boolForKey:AggressiveTrashAUXKey]) {
 		[self trashAUX];
 	} else {
@@ -8824,28 +9769,28 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	NSEnumerator    *enumerator;
 	NSArray         *otherExtensions;
 	NSEnumerator    *arrayEnumerator;
-	
+
 	if (! fileIsTex)
 		return;
-	
+
 	if ([self fileName] == nil)
 		return;
-	
+
 	path = [[self fileName] stringByDeletingLastPathComponent];
 	fileName = [[[self fileName] lastPathComponent] stringByDeletingPathExtension];
 	NSFileManager *myFileManager = [NSFileManager defaultManager];
-	
+
 	if (aggressiveTrash) {
 		enumerator = [myFileManager enumeratorAtPath: path];
 		fileToBeMoved = [NSMutableArray arrayWithCapacity: 1];
 		[fileToBeMoved addObject:@""];
 	} else
 		enumerator = [[myFileManager directoryContentsAtPath: path] objectEnumerator];
-	
+
 	pathsToBeMoved = [NSMutableArray arrayWithCapacity: 20];
-	
-	
-	
+
+
+
 	while ((anObject = [enumerator nextObject])) {
 		doMove = YES;
 		extension = [anObject pathExtension];
@@ -8854,7 +9799,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			if (! [objectFileName isEqualToString:fileName])
 				doMove = NO;
 		}
-		
+
 		isOneOfOther = NO;
 		otherExtensions = [SUD stringArrayForKey: OtherTrashExtensionsKey];
 		arrayEnumerator = [otherExtensions objectEnumerator];
@@ -8862,7 +9807,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			if ([extension isEqualToString:stringObject])
 				isOneOfOther = YES;
 		}
-		
+
 		if ([extension isEqualToString:@"gz"]) {
 			objectName = [anObject stringByDeletingPathExtension];
 			if ([[objectName pathExtension] isEqualToString:@"synctex"]) {
@@ -8875,7 +9820,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 				}
 			}
 		}
-			
+
 		if (doMove && (isOneOfOther ||
 					   ([extension isEqualToString:@"aux"] ||
 						[extension isEqualToString:@"blg"] ||
@@ -8905,11 +9850,11 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 						[extension isEqualToString:@"synctex"] ||
 						[extension isEqualToString:@"toc"])))
 			[pathsToBeMoved addObject: anObject];
-		
+
 	}
-	
+
 	if (aggressiveTrash) {
-		
+
 		enumerator = [pathsToBeMoved objectEnumerator];
 		while ((anObject = [enumerator nextObject])) {
 			path1 = [path stringByAppendingPathComponent: anObject];
@@ -8918,12 +9863,12 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			[[NSWorkspace sharedWorkspace]
 					performFileOperation:NSWorkspaceRecycleOperation source:path2 destination:nil files:fileToBeMoved tag:&myTag];
 		}
-		
+
 	} else {
 		[[NSWorkspace sharedWorkspace]
 			performFileOperation:NSWorkspaceRecycleOperation source:path destination:nil files:pathsToBeMoved tag:&myTag];
 	}
-	
+
 }
 */
 
@@ -8940,14 +9885,14 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	NSArray                 *otherExtensions;
 	NSEnumerator            *arrayEnumerator;
     NSURL                   *pathURL, *theURL;
-    
+
 	if (! fileIsTex)
 		return;
-	
+
 	if ([self fileURL] == nil)
 		return;
-    
-	
+
+
 	path = [[[self fileURL] path] stringByDeletingLastPathComponent];
  //    pathURL = [NSURL URLWithString: path];
     pathURL = [NSURL fileURLWithPath: path isDirectory: YES];
@@ -8955,7 +9900,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     // Yusuke Terada Fix, 5/10/2024
     fileName = [[[[[self fileURL] path] lastPathComponent] stringByDeletingPathExtension] normalizedStringWithModifiedNFC];
 	NSFileManager *myFileManager = [NSFileManager defaultManager];
-	
+
 	if (aggressiveTrash) {
         dirEnumerator = [myFileManager enumeratorAtURL: pathURL includingPropertiesForKeys: [NSArray arrayWithObjects:NSURLNameKey, NSURLIsDirectoryKey,nil]
             options:NSDirectoryEnumerationSkipsHiddenFiles
@@ -8963,14 +9908,14 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	} else
         dirEnumerator = [myFileManager enumeratorAtURL: pathURL includingPropertiesForKeys: [NSArray arrayWithObjects:NSURLNameKey, NSURLIsDirectoryKey,nil]
                     options: NSDirectoryEnumerationSkipsSubdirectoryDescendants errorHandler: nil];
-	
+
 	pathsToBeMoved = [NSMutableArray arrayWithCapacity: 20];
-	
+
 	if ((GetCurrentKeyModifiers() & shiftKey) != 0)
 		trashPDF = YES;
 	else
 		trashPDF = NO;
-	
+
 	while ((theURL = [dirEnumerator nextObject])) {
         /*
         [theURL getResourceValue:&dirName forKey:NSURLNameKey error:NULL];
@@ -8981,7 +9926,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
              [dirEnumerator skipDescendants];
         }
         */
-        
+
         anObject = [theURL path];
 		doMove = YES;
 		extension = [anObject pathExtension];
@@ -8992,7 +9937,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			if (! [objectFileName isEqualToString:fileName])
 				doMove = NO;
 		}
-        
+
 		isOneOfOther = NO;
 		otherExtensions = [SUD stringArrayForKey: OtherTrashExtensionsKey];
 		arrayEnumerator = [otherExtensions objectEnumerator];
@@ -9000,7 +9945,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			if ([extension isEqualToString:stringObject])
 				isOneOfOther = YES;
 		}
-		
+
 		if ([extension isEqualToString:@"gz"]) {
  			if ([[objectFileName pathExtension] isEqualToString:@"synctex"]) {
 				doMove = YES;
@@ -9012,7 +9957,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 				}
 			}
 		}
-		
+
 		if ([extension isEqualToString:@"xml"]) {
 			if ([[objectFileName pathExtension] isEqualToString:@"run"]) {
 				doMove = YES;
@@ -9024,7 +9969,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 				}
 			}
 		}
-		
+
  		if (doMove && (isOneOfOther ||
 					   ([extension isEqualToString:@"aux"] ||
 						[extension isEqualToString:@"blg"] ||
@@ -9062,9 +10007,9 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 						([extension isEqualToString:@"pdf"] && trashPDF) ||
 						[extension isEqualToString:@"toc"])))
 			[pathsToBeMoved addObject: anObject];
-		
+
 	}
-    
+
     fileToBeMoved = [NSMutableArray arrayWithCapacity: 1];
     [fileToBeMoved addObject:@""];
 
@@ -9074,7 +10019,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [fileToBeMoved replaceObjectAtIndex:0 withObject: [anObject lastPathComponent]];
    //     NSLog(path2);
    //     NSLog([anObject lastPathComponent]);
-        
+
   // August, 2021. A note from Erik A. Johnson reports that the following code fails on files in a Google Drive folder, because
   // Google Drive does not support a trash folder. Moreover, the call itself is deprecated in Big Sur. See the Johnson email
   // message in the source code Bugs folder.
@@ -9083,17 +10028,17 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [[NSWorkspace sharedWorkspace]
             performFileOperation:NSWorkspaceRecycleOperation source:path2 destination:nil files:fileToBeMoved tag:&myTag];
     */
-        
+
  // Johnson provided the following fix. The fix tries to trash the file, but if there is an error, it completely removes the file.
-    
-         
+
+
         NSError *err;
         [[NSFileManager defaultManager] trashItemAtURL: [NSURL fileURLWithPath:anObject] resultingItemURL: nil error:&err];
         (err.code==NSFeatureUnsupportedError && [[NSFileManager defaultManager] removeItemAtPath:anObject error:nil]);
-        
-     
+
+
      }
-	
+
 }
 
 - (void) showSyncMarks: sender
@@ -9112,7 +10057,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
     NSInteger myState;
     NSRange     theRange;
-    
+
     myState = [(NSButton *)sender state];
     if (myState == 1)
         showIndexColor = YES;
@@ -9139,7 +10084,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 }
 
 - (void)doBackForward:(id)sender
-{	
+{
 	switch ([sender selectedSegment]) {
 		// case 0:	[[self pdfKitView] goBack:sender];
 		case 0: [self.pdfKitWindow.activeView goBack:sender];
@@ -9212,13 +10157,13 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 }
 
 - (void) paperSizeOKPressed: sender;
-{   
+{
     NSInteger	paperChoice;
-    
+
     paperChoice = [[PaperSizeChoice selectedCell] tag];
     [PaperSizePanel close];
     if (paperChoice == 0) return;
-    
+
     // The code below is modified from an article by Brian R. Hill
     // See http://www.stepwise.com/Articles/Technical/2001-03-26.01.html
 
@@ -9227,46 +10172,46 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
     AuthorizationRef authorizationRef = NULL;
     OSStatus err = 0;
-     
+
     // The authorization rights structure holds a reference to an array
     // of AuthorizationItem structures that represent the rights for which
     // you are requesting access.
 
     AuthorizationRights rights;
     AuthorizationFlags flags;
-    
+
     // We just want the user's current authorization environment,
     // so we aren't asking for any additional rights yet.
 
     rights.count=0;
     rights.items = NULL;
-        
+
     flags = kAuthorizationFlagDefaults;
-    
-    err = AuthorizationCreate(&rights, kAuthorizationEmptyEnvironment, 
+
+    err = AuthorizationCreate(&rights, kAuthorizationEmptyEnvironment,
                               flags, &authorizationRef);
-			      
+
     AuthorizationItem items[1];
-    
+
     NSString *teTeXBinPath = [[SUD stringForKey:TetexBinPath] stringByExpandingTildeInPath];
     NSString *toolPath = [teTeXBinPath stringByAppendingString: @"/texconfig-sys"];
     const char *myPath =  [toolPath cStringUsingEncoding: NSASCIIStringEncoding];
-    
+
     BOOL authorized = NO;
-   
+
 /*
     // There should be one item in the AuthorizationItems array for each
     // right you want to acquire.
 
     // The data in the value and valueLength is dependent on which right you
-    // want to acquire. 
-        
+    // want to acquire.
+
     // For the right to execute tools as root, kAuthorizationRightExecute,
-    // they should hold a pointer to a C string containing the path to 
+    // they should hold a pointer to a C string containing the path to
     // the tool you want to execute, and the length of the C string path.
 
     // There needs to be one item for each tool you want to execute.
-        
+
     items[0].name = kAuthorizationRightExecute;
     items[0].value = myPath;
     items[0].valueLength = strlen(myPath);
@@ -9274,9 +10219,9 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
     rights.count=1;
     rights.items = items;
-    
+
     flags = kAuthorizationFlagExtendRights;
-    
+
     // Since we've specified kAuthorizationFlagExtendRights and
     // haven't specified kAuthorizationFlagInteractionAllowed, if the
     // user isn't currently authorized to execute tools as root,
@@ -9291,22 +10236,22 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 */
 
     AuthorizationItem item[1];
-    
+
     item[0].name = kAuthorizationRightExecute;
     item[0].value = myPath;
     item[0].valueLength = strlen(myPath);
     item[0].flags = 0;
-    
+
     rights.count=1;
     rights.items = item;
-    
-    flags = kAuthorizationFlagInteractionAllowed 
+
+    flags = kAuthorizationFlagInteractionAllowed
                | kAuthorizationFlagExtendRights;
 
     // Here, since we've specified kAuthorizationFlagExtendRights and
     // have also specified kAuthorizationFlagInteractionAllowed, if the
-    // user isn't currently authorized to execute tools as root 
-    // (kAuthorizationRightExecute),they will be asked for their password. 
+    // user isn't currently authorized to execute tools as root
+    // (kAuthorizationRightExecute),they will be asked for their password.
 
     // The err return value will indicate authorization success or failure.
 
@@ -9316,7 +10261,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     authorized = (errAuthorizationSuccess==err);
 
     if (authorized) {
-    
+
 	char* args[3];
 	FILE* iopipe=NULL;
 	// The arguments parameter to AuthorizationExecuteWithPrivileges is
@@ -9331,11 +10276,11 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
 	err = AuthorizationExecuteWithPrivileges(authorizationRef,
 		    myPath, 0, args, &iopipe);
-		    
-	if (err != 0) 
+
+	if (err != 0)
 	//    NSLog(@"Error %d in AuthorizationExecuteWithPrivileges", err);
     }
-    
+
     AuthorizationFree(authorizationRef,kAuthorizationFlagDestroyRights);
 
 }
@@ -9363,61 +10308,61 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 		case 1: lineBreakMode = NSLineBreakByWordWrapping;		break;
 		case 2: lineBreakMode = NSLineBreakByCharWrapping;		break;
 	}
-		
+
 	//Setup the stuff
 	switch (lineBreakMode)
 	{
 		case NSLineBreakByClipping:
         {
-			
+
 			// modified by Terada
 			NSTextContainer *container;
 			NSSize maximumSize = NSMakeSize(FLT_MAX, FLT_MAX);
-			
+
 			[scrollView setAutoresizingMask:NSViewWidthSizable];
 			[[scrollView contentView] setAutoresizesSubviews:YES];
 			[scrollView setHasHorizontalScroller:YES];
-			
+
 			container = [textView textContainer];
 			[container setContainerSize:maximumSize];
 			[container setWidthTracksTextView:NO];
-			
+
 			[textView setMaxSize:maximumSize];
 			[textView setHorizontallyResizable:YES];
-			
+
 			//Do the same for the second textView:
 			[scrollView2 setAutoresizingMask:NSViewWidthSizable];
 			[[scrollView2 contentView] setAutoresizesSubviews:YES];
 			[scrollView2 setHasHorizontalScroller:YES];
-			
+
 			container = [textView2 textContainer];
 			[container setContainerSize:maximumSize];
 			[container setWidthTracksTextView:NO];
-			
+
 			[textView2 setMaxSize:maximumSize];
 			[textView2 setHorizontallyResizable:YES];
-			
+
 			/*
             NSTextContainer *   container       = [textView textContainer];
             NSSize              containerSize   = [container containerSize];
                                 containerSize.width = FLT_MAX;
-            
+
 			[scrollView setHasHorizontalScroller:  YES];
 			[textView setHorizontallyResizable: YES];
             [container setWidthTracksTextView: NO];
 			[container setContainerSize: containerSize];
-            
+
 			//Apparently, the frame must be made the largest possible so as to make the scroll bars correct.
 			[textView setFrameSize: containerSize];
-			
+
 			//The above code causes the text to be incorrectly drawn. This fixes that.
 			[textView setFrameSize: [scrollView contentSize]];
-			
+
 			//Do the same for the second textView:
             container       = [textView2 textContainer];
             containerSize   = [container containerSize];
             containerSize.width = FLT_MAX;
-            
+
 			[scrollView2 setHasHorizontalScroller:  YES];
 			[textView2 setHorizontallyResizable: YES];
             [container setWidthTracksTextView: NO];
@@ -9425,7 +10370,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			[textView2 setFrameSize: containerSize];
             [textView2 setFrameSize: [scrollView contentSize]];
 			*/
-            
+
 			break;
 		}
 		//case NSLineBreakByWordWrapping:
@@ -9436,17 +10381,17 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			[textView setAutoresizingMask: NSViewWidthSizable];
 			[[textView textContainer] setWidthTracksTextView: YES];
 			[textView setFrameSize: [scrollView contentSize]];
-			
+
 			//Do the same for the second textView:
             [scrollView2 setHasHorizontalScroller: NO];
 			[textView2 setHorizontallyResizable: NO];
 			[textView2 setAutoresizingMask: NSViewWidthSizable];
 			[[textView2 textContainer] setWidthTracksTextView: YES];
 			[textView2 setFrameSize: [scrollView contentSize]];
-            
+
 			break;
 	}
-        	
+
 	//Reformat the text
 	NSUInteger						textStorageLength	= [_textStorage length];
     NSMutableParagraphStyle		*	styleNew;
@@ -9456,11 +10401,11 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [styleNew setLineBreakMode: lineBreakMode];
         [_textStorage addAttribute: NSParagraphStyleAttributeName value: styleNew range: NSMakeRange(0, textStorageLength)];
     }
-    
+
 	//This is so that the when everything is deleted, the format remains the same.
     styleNew = [[textView defaultParagraphStyle] mutableCopy];
     [styleNew setLineBreakMode: lineBreakMode];
-    
+
 	[textView  setDefaultParagraphStyle: styleNew];
 	[textView2 setDefaultParagraphStyle: styleNew];
 }
@@ -9468,65 +10413,65 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
 - (void)setLineBreakModeNew
 {
-    
+
     if (lineBreakMode == NSLineBreakByWordWrapping)
         return;
-    
-    
+
+
     //Setup the stuff
     switch (lineBreakMode)
     {
         case NSLineBreakByClipping:
         {
-            
+
             // modified by Terada
             NSTextContainer *container;
             NSSize maximumSize = NSMakeSize(FLT_MAX, FLT_MAX);
-            
+
             [scrollView setAutoresizingMask:NSViewWidthSizable];
             [[scrollView contentView] setAutoresizesSubviews:YES];
             [scrollView setHasHorizontalScroller:YES];
-            
+
             container = [textView textContainer];
             [container setContainerSize:maximumSize];
             [container setWidthTracksTextView:NO];
-            
+
             [textView setMaxSize:maximumSize];
             [textView setHorizontallyResizable:YES];
-            
+
             //Do the same for the second textView:
             [scrollView2 setAutoresizingMask:NSViewWidthSizable];
             [[scrollView2 contentView] setAutoresizesSubviews:YES];
             [scrollView2 setHasHorizontalScroller:YES];
-            
+
             container = [textView2 textContainer];
             [container setContainerSize:maximumSize];
             [container setWidthTracksTextView:NO];
-            
+
             [textView2 setMaxSize:maximumSize];
             [textView2 setHorizontallyResizable:YES];
-            
+
             /*
              NSTextContainer *   container       = [textView textContainer];
              NSSize              containerSize   = [container containerSize];
              containerSize.width = FLT_MAX;
-             
+
              [scrollView setHasHorizontalScroller:  YES];
              [textView setHorizontallyResizable: YES];
              [container setWidthTracksTextView: NO];
              [container setContainerSize: containerSize];
-             
+
              //Apparently, the frame must be made the largest possible so as to make the scroll bars correct.
              [textView setFrameSize: containerSize];
-             
+
              //The above code causes the text to be incorrectly drawn. This fixes that.
              [textView setFrameSize: [scrollView contentSize]];
-             
+
              //Do the same for the second textView:
              container       = [textView2 textContainer];
              containerSize   = [container containerSize];
              containerSize.width = FLT_MAX;
-             
+
              [scrollView2 setHasHorizontalScroller:  YES];
              [textView2 setHorizontallyResizable: YES];
              [container setWidthTracksTextView: NO];
@@ -9534,7 +10479,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
              [textView2 setFrameSize: containerSize];
              [textView2 setFrameSize: [scrollView contentSize]];
              */
-            
+
             break;
         }
             //case NSLineBreakByWordWrapping:
@@ -9545,17 +10490,17 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
             [textView setAutoresizingMask: NSViewWidthSizable];
             [[textView textContainer] setWidthTracksTextView: YES];
             [textView setFrameSize: [scrollView contentSize]];
-            
+
             //Do the same for the second textView:
             [scrollView2 setHasHorizontalScroller: NO];
             [textView2 setHorizontallyResizable: NO];
             [textView2 setAutoresizingMask: NSViewWidthSizable];
             [[textView2 textContainer] setWidthTracksTextView: YES];
             [textView2 setFrameSize: [scrollView contentSize]];
-            
+
             break;
     }
-    
+
     //Reformat the text
     NSUInteger                        textStorageLength    = [_textStorage length];
     NSMutableParagraphStyle        *    styleNew;
@@ -9565,11 +10510,11 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [styleNew setLineBreakMode: lineBreakMode];
         [_textStorage addAttribute: NSParagraphStyleAttributeName value: styleNew range: NSMakeRange(0, textStorageLength)];
     }
-    
+
     //This is so that the when everything is deleted, the format remains the same.
     styleNew = [[textView defaultParagraphStyle] mutableCopy];
     [styleNew setLineBreakMode: lineBreakMode];
-    
+
     [textView  setDefaultParagraphStyle: styleNew];
     [textView2 setDefaultParagraphStyle: styleNew];
 }
@@ -9583,36 +10528,36 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	NSString		*	textStorageString	= [_textStorage string];
 	NSMutableArray	*	newlineIndexes		= [[NSMutableArray alloc] init] ;
 	NSLayoutManager	*	layoutManager   	= [textView layoutManager];
-	
+
 	if ((charRange.length == 0) && ((charRange = [textView2 selectedRange]).length == 0))
         charRange = NSMakeRange(0, [_textStorage length]);
-	
+
 	NSUInteger    charRangeLocationLast   = charRange.location + charRange.length - 1;
-    
+
     //extend the range to the previous line
     [layoutManager lineFragmentRectForGlyphAtIndex: charRange.location effectiveRange: &charRange];
     if (charRange.location != 0)
         charRange.location--;
-	
+
 	while (true)
 	{
 		[layoutManager lineFragmentRectForGlyphAtIndex: charRange.location effectiveRange: &charRange];
-		
+
 		charRange.location += charRange.length - 1;
 		charRange.length	= 1;
-		
+
         if (charRange.location >= textStorageIndexLast)
 			break;
-        
+
         if (![[textStorageString substringWithRange: charRange] isEqualToString: @"\n"])
             [newlineIndexes insertObject: [NSNumber numberWithUnsignedInt: ++charRange.location] atIndex: 0];
         else
             charRange.location++;
-        
+
         if (charRange.location >= charRangeLocationLast)
 			break;
 	}
-    
+
 	if ([newlineIndexes count])
 		[self insertNewlinesFromSelectionUsingIndexes: newlineIndexes withActionName: NSLocalizedString(@"Hard Wrap", @"Hard Wrap")];
 }
@@ -9622,109 +10567,109 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	NSString		*	textStorageString	= [_textStorage string];
 	NSMutableArray	*	newlineIndexes		= [[NSMutableArray alloc] init] ;
 	NSRange				charRange			= [textView selectedRange];
-	
+
 	if (charRange.length == 0)
     {
 		charRange = [textView2 selectedRange];
-        
+
         if (charRange.length == 0)
             charRange = NSMakeRange(0, [_textStorage length]);
     }
-	
+
 	NSUInteger charRangeStart = charRange.location;
-	
+
 	for (charRange.location = (charRange.location + charRange.length - 1), charRange.length = 1; charRange.location > charRangeStart; charRange.location--)
 	{
-		if ([[textStorageString substringWithRange: charRange] isEqualToString: @"\n"])		
+		if ([[textStorageString substringWithRange: charRange] isEqualToString: @"\n"])
 			[newlineIndexes addObject: [NSNumber numberWithUnsignedInt: charRange.location]];
 	}
-	
+
 	if ([newlineIndexes count])
 		[self removeNewlinesUsingIndexes: newlineIndexes withActionName: NSLocalizedString(@"Newline Removal", @"Newline Removal")];
 }
 
 - (void)insertNewlinesFromSelectionUsingIndexes: (NSArray*)indexes withActionName: (NSString*)actionName //added by mfwitten@mit.edu
-{	
+{
 	NSUndoManager	*	undoManager			= [textView undoManager];
 	NSMutableArray	*	indexesReversed		= [[NSMutableArray alloc] init] ;
 	NSEnumerator	*	indexesEnumerator	= [indexes objectEnumerator];
 	NSNumber		*	idx;
-    
+
     NSRange				selectedRange		= [textView selectedRange];
     BOOL                selected            = YES;
     NSTextView      *   textViewSelected    = textView;
-	
+
 	if ((selectedRange.length == 0) && ((selectedRange = [textView2 selectedRange]).length == 0))
         selected = NO;
-	
+
 	while ((idx = (NSNumber*)[indexesEnumerator nextObject]))
 	{
 		[_textStorage insertAttributedString: [[NSAttributedString alloc] initWithString: @"\n"]  atIndex: [idx unsignedIntegerValue]];
 		[indexesReversed insertObject: idx atIndex: 0];
 	}
-    
+
     if (selected)
     {
         NSUInteger offset         = 0;
         NSUInteger indexesCount   = [indexes count];
-                
+
         if ([(NSNumber*)[indexes objectAtIndex: indexesCount - 1] unsignedIntegerValue] <= selectedRange.location)
         {
             selectedRange.location++;
             offset = 1;
         }
-        
+
         selectedRange.length += indexesCount - offset;
-        
+
         [textViewSelected setSelectedRange: selectedRange];
     }
-    
+
 	[undoManager setActionName: actionName];
 	[[undoManager prepareWithInvocationTarget: self]
 			removeNewlinesUsingIndexes: indexesReversed withActionName: actionName];
 }
 
 - (void)removeNewlinesUsingIndexes: (NSArray*)indexes withActionName: (NSString*)actionName //added by mfwitten@mit.edu
-{	
+{
 	NSUndoManager	*	undoManager					= [textView undoManager];
 	NSMutableArray	*	indexesReversed				= [[NSMutableArray alloc] init] ;
 	NSEnumerator	*	indexesEnumerator			= [indexes objectEnumerator];
 	NSNumber		*	idx;
-	
+
     NSRange				selectedRange		= [textView selectedRange];
     BOOL                selected            = YES;
     NSTextView      *   textViewSelected    = textView;
-	
+
 	if ((selectedRange.length == 0) && ((selectedRange = [textView2 selectedRange]).length == 0))
         selected = NO;
-    
+
 	while ((idx = (NSNumber*)[indexesEnumerator nextObject]))
 	{
 		[_textStorage deleteCharactersInRange: NSMakeRange([idx unsignedIntegerValue], 1)];
 		[indexesReversed insertObject: idx atIndex: 0];
 	}
-    
+
     if (selected)
     {
         NSUInteger offset         = 0;
         NSUInteger indexesCount   = [indexes count];
-                
+
         if ([(NSNumber*)[indexes objectAtIndex: 0] unsignedIntegerValue] <= selectedRange.location)
         {
             selectedRange.location--;
             offset = 1;
         }
-        
+
         selectedRange.length -= indexesCount - offset;
-        
+
         [textViewSelected setSelectedRange: selectedRange];
     }
-	
+
 	[undoManager setActionName: actionName];
 	[[undoManager prepareWithInvocationTarget: self]
 			insertNewlinesFromSelectionUsingIndexes: indexesReversed withActionName: actionName];
 }
- 
+
 */
 
 - (bool)isTextSelected {
@@ -9734,16 +10679,16 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 }
 
 - (NSRange)getTextSelectionOrWholeDocument {
-    
+
     // Get selected text
     NSRange charRange = [textView selectedRange];
-    
+
     // If no text is selected, select whole document
     if (![self isTextSelected])
     {
         charRange = NSMakeRange(0, [_textStorage length]);
     }
-    
+
     return charRange;
 }
 
@@ -9752,10 +10697,10 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     while (![self lastCharacterOfRange:NSMakeRange(startOfWord, 1) equals:@" "]) {
         startOfWord--;
     }
-    
+
     // select the first letter, not the space before the word
     startOfWord++;
-    
+
     return startOfWord;
 }
 
@@ -9774,13 +10719,13 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSMutableArray    *    insertedCharactersIndexes    = [[NSMutableArray alloc] init];
     NSMutableArray  * insertedCharacters        = [[NSMutableArray alloc] init];
     NSLayoutManager    *layoutManager           = [textView layoutManager];
-    
+
     NSUInteger charRangeLocationLast = charRange.location + charRange.length - 1;
-  
+
     bool lastLineWasHardWrappedAndCommented = false;
     NSUInteger charsLastWordUsedInNextLine = 0;
     NSString* oldPrefix = [[NSString alloc] init];
-    
+
     // While end of selection or end of document is not reached, hard wrap
     while (charRange.location < charRangeLocationLast &&
            charRange.location < textStorageIndexLast)
@@ -9789,7 +10734,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [layoutManager lineFragmentRectForGlyphAtIndex: charRange.location effectiveRange: &currentLine];
         currentLine.location += charsLastWordUsedInNextLine;
         currentLine.length -= charsLastWordUsedInNextLine;
-        
+
         // Here we handle words that for some reason are wrapped (e.g. because they include a colon)
         // Wrapping such words could break commands like \cite{abc:def}
         // Hence, these words get their own line
@@ -9808,14 +10753,14 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
             [currentLineParts addObject:[NSValue valueWithRange:currentLine]];
             charsLastWordUsedInNextLine = 0;
         }
-        
+
         for (int i = 0; i < [currentLineParts count]; i++) {
             currentLine = [currentLineParts[i] rangeValue];
         // If last character of line does not break the line, add a line break
         if (![self lastCharacterOfRangeIsLinebreak:currentLine])
         {
             NSString *currentLineText = [[_textStorage string] substringWithRange:currentLine];
-            
+
             if (!([self textContainsComment:currentLineText] || lastLineWasHardWrappedAndCommented)) {
                 // This line contains no comment: Just add a newline at the end
                 [insertedCharactersIndexes insertObject: [NSNumber numberWithUnsignedInt: (unsigned int)(currentLine.location+currentLine.length)] atIndex: 0];
@@ -9825,11 +10770,11 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 // This line contains a comment. If we break the line we need to comment out the newly created line
                 [insertedCharactersIndexes insertObject: [NSNumber numberWithUnsignedInt: (unsigned int)(currentLine.location+currentLine.length)] atIndex: 0];
                 [insertedCharacters insertObject:@"\n" atIndex:0];
-                
+
                 // Add comment symbol to new line
                 [insertedCharactersIndexes insertObject: [NSNumber numberWithUnsignedInt: (unsigned int)(currentLine.location+currentLine.length)] atIndex: 0];
                 [insertedCharacters insertObject:@"%" atIndex:0];
-                
+
                 // Add optional prefix after comment (to cover cases where all lines begin with, e.g., '%%  ')
                 NSString* prefix = [[NSString alloc] init];
                 if (lastLineWasHardWrappedAndCommented) {
@@ -9851,12 +10796,12 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
           lastLineWasHardWrappedAndCommented = false;
         }
         }
-        
+
         [layoutManager lineFragmentRectForGlyphAtIndex: charRange.location effectiveRange: &currentLine];
         // Proceed to next line
         charRange.location += currentLine.length;
     }
-    
+
     // Apply newly created line breaks
     if ([insertedCharactersIndexes count])
     {
@@ -9873,28 +10818,28 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSUInteger        location        = 0;
     unichar           currentCharacter;
     bool              foundComment    = false;
-    
+
     // Go over the text character by character and search for the beginning of a comment
     while (location < inspectedText.length) {
         currentCharacter = [inspectedText characterAtIndex: location];
-        
+
         if (currentCharacter == commentSymbol) {
             // Comment found
             foundComment = true;
             location++;
             currentCharacter = [inspectedText characterAtIndex: location];
-            
+
             // Get prefix consisting of multiple % followed by (multiple) blanks
             while (prefix != NULL &&
                    location < inspectedText.length &&
                    (currentCharacter == commentSymbol || currentCharacter == spaceSymbol)) {
                 *prefix = [*prefix stringByAppendingString:[NSString stringWithCharacters:&currentCharacter length:1]];
-                
+
                 // Get next char
                 location++;
                 currentCharacter = [inspectedText characterAtIndex: location];
             }
-            
+
             // We're done searching
             break;
         }
@@ -9905,7 +10850,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         }
         location++;
     }
-    
+
     return foundComment;
 }
 
@@ -9921,12 +10866,12 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                       equals: (NSString*)character
 {
     NSString* textStorageString  = [_textStorage string];
-    
+
     // Get range of last character
     NSRange lastCharacterOfCurrentLine;
     lastCharacterOfCurrentLine.location = currentLine.location + currentLine.length - 1;
     lastCharacterOfCurrentLine.length  = 1;
-    
+
     // Check if last character matches
     return [[textStorageString substringWithRange: lastCharacterOfCurrentLine]
             isEqualToString: character];
@@ -9937,15 +10882,15 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSString            *    textStorageString    = [_textStorage string];
     NSMutableArray    *    newlineIndexes        = [[NSMutableArray alloc] init] ;
     NSRange                    charRange                = [self getTextSelectionOrWholeDocument];
-    
+
     NSUInteger charRangeStart = charRange.location;
-    
+
     for (charRange.location = (charRange.location + charRange.length - 1), charRange.length = 1; charRange.location > charRangeStart; charRange.location--)
     {
         if ([[textStorageString substringWithRange: charRange] isEqualToString: @"\n"])
             [newlineIndexes addObject: [NSNumber numberWithUnsignedInt: (unsigned int)charRange.location]];
     }
-    
+
     if ([newlineIndexes count])
     {
         [self removeCharactersUsingIndexes: newlineIndexes
@@ -9962,7 +10907,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     {
         [newlines addObject:@"\n"];
     }
-    
+
     // Insert newlines
     [self insertCharactersFromSelectionUsingIndexes:indexes
                                          characters:newlines
@@ -9978,34 +10923,34 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSEnumerator      *    indexesEnumerator    = [indexes objectEnumerator];
     NSNumber            *    idx;
     NSUInteger        idxCount          = 0;
-    
+
     // Save selection state as it will be outdated after inserting characters
     bool              isTextSelected    = [self isTextSelected];
     NSRange           selectedRange     = [textView selectedRange];
-    
+
     // Insert given characters
     while ((idx = (NSNumber*)[indexesEnumerator nextObject]))
     {
         [textView replaceCharactersInRange:NSMakeRange([idx unsignedIntegerValue], 0) withString:characters[idxCount++]];
         [indexesReversed insertObject: idx atIndex: 0];
     }
-    
+
     // Update selection to include the characters just added
     if (isTextSelected)
     {
         NSUInteger offset         = 0;
         NSUInteger indexesCount   = [indexes count];
-        
+
         if ([(NSNumber*)[indexes objectAtIndex: indexesCount - 1] unsignedIntegerValue] <= selectedRange.location)
         {
             selectedRange.location++;
             offset = 1;
         }
-        
+
         selectedRange.length += indexesCount - offset;
         [textView setSelectedRange: selectedRange];
     }
-    
+
     [undoManager setActionName: actionName];
     [[undoManager prepareWithInvocationTarget: self]
      removeCharactersUsingIndexes: indexesReversed withActionName: actionName];
@@ -10019,11 +10964,11 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSMutableArray  * removedCharacters   = [[NSMutableArray alloc] init];
     NSEnumerator      *    indexesEnumerator        = [indexes objectEnumerator];
     NSNumber            *    idx;
-    
+
     // Save selection state as it will be outdated after inserting characters
     bool              isTextSelected    = [self isTextSelected];
     NSRange           selectedRange     = [textView selectedRange];
-    
+
     // Remove characters at given idices
     while ((idx = (NSNumber*)[indexesEnumerator nextObject]))
     {
@@ -10032,24 +10977,24 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [_textStorage deleteCharactersInRange: rangeToDelete];
         [indexesReversed insertObject: idx atIndex: 0];
     }
-    
+
     // Update selection range to match with removed characters
     if (isTextSelected)
     {
-        
+
         NSUInteger offset         = 0;
         NSUInteger indexesCount   = [indexes count];
-        
+
         if ([(NSNumber*)[indexes objectAtIndex: 0] unsignedIntegerValue] <= selectedRange.location)
         {
             selectedRange.location--;
             offset = 1;
         }
-        
+
         selectedRange.length -= indexesCount - offset;
         [textView setSelectedRange: selectedRange];
     }
-    
+
     [undoManager setActionName: actionName];
     [[undoManager prepareWithInvocationTarget: self]
      insertCharactersFromSelectionUsingIndexes: indexesReversed characters:removedCharacters withActionName: actionName];
@@ -10078,7 +11023,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
             [SUD setObject:[fullSplitWindow stringWithSavedFrame] forKey:DocumentSplitWindowPositionKey];
             [SUD synchronize];
         }
-        
+
     else if (activeWindow != nil) {
 		[self fixPreferences];
 		[SUD setInteger:DocumentWindowPosFixed forKey:DocumentWindowPosModeKey];
@@ -10088,7 +11033,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 }
 
 - (void) savePreviewPosition
-{ 
+{
 	NSWindow	*activeWindow;
 	activeWindow = [[TSWindowManager sharedInstance] activePDFWindow];
 
@@ -10105,7 +11050,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
 	NSWindow	*activeWindow;
 	activeWindow = [[TSWindowManager sharedInstance] activeTextWindow];
-    
+
 	if (activeWindow != nil) {
 		[self fixPreferences];
 		[SUD setInteger:DocumentWindowPosFixed forKey:DocumentWindowPosModeKey];
@@ -10118,14 +11063,14 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
 	NSWindow	*activeWindow;
 	activeWindow = [[TSWindowManager sharedInstance] activePDFWindow];
-    
+
 	if (activeWindow != nil) {
 		[self fixPreferences];
 		[SUD setInteger:DocumentWindowPosFixed forKey:PdfWindowPosModeKey];
 		[SUD setObject:[activeWindow stringWithSavedFrame] forKey:PortablePdfWindowFixedPosKey];
 		[SUD synchronize];
     }
-    
+
 }
 
 /*
@@ -10133,14 +11078,14 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
     NSWindow    *activeWindow;
     activeWindow = [[TSWindowManager sharedInstance] activeHTMLWindow];
-    
+
     if (activeWindow != nil) {
         [self fixPreferences];
         [SUD setInteger:HtmlWindowPosFixed forKey:HtmlWindowPosModeKey];
         [SUD setObject:[activeWindow stringWithSavedFrame] forKey:HtmlWindowFixedPosKey];
         [SUD synchronize];
     }
-    
+
 }
 */
 
@@ -10157,13 +11102,13 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
 	if (useFullSplitWindow)
         return;
-    
+
 	imagePath = [[[[self fileURL] path]stringByDeletingPathExtension] stringByAppendingPathExtension:@"pdf"];
 	if (! imagePath)
 		return;
-	if (![[NSFileManager defaultManager] fileExistsAtPath: imagePath]) 
+	if (![[NSFileManager defaultManager] fileExistsAtPath: imagePath])
 		return;
-		
+
 	if (CGDisplayCapture( kCGDirectMainDisplay ) != kCGErrorSuccess) {
       //  NSLog( @"Couldn't capture the main display!" );
 		}
@@ -10174,17 +11119,17 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 		screenRect = [[NSScreen mainScreen] frame];
 		[self.fullscreenWindow setFrame: screenRect display: NO];
 		[self.fullscreenWindow setBackgroundColor:[NSColor darkGrayColor]];
-	
+
 		[self.fullscreenPDFView setDisplayMode: kPDFDisplaySinglePage];
 		[self.fullscreenPDFView setAutoScales: YES];
 		pdfDoc = [[PDFDocument alloc] initWithURL: [NSURL fileURLWithPath: imagePath]] ;
 		[self.fullscreenPDFView setDocument: pdfDoc];
-		
+
 		myCurrentPage = [self.myPDFKitView currentPage];
 		currentPageIndex = [[self.myPDFKitView document] indexForPage: myCurrentPage];
 		newPage = [[self.fullscreenPDFView document] pageAtIndex: currentPageIndex];
 		[self.fullscreenPDFView goToPage: newPage];
-		
+
 		[self.fullscreenWindow makeKeyAndOrderFront:nil];
 		}
 
@@ -10194,16 +11139,16 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
 	PDFPage	*myCurrentPage;
 	NSInteger		currentPageNumber;
-	
-	
+
+
 	if (isFullScreen) {
 		isFullScreen = NO;
-		
+
 		myCurrentPage = [self.fullscreenPDFView currentPage];
 		currentPageNumber = [[self.fullscreenPDFView document] indexForPage: myCurrentPage];
 		currentPageNumber++;
 		[self.myPDFKitView goToKitPageNumber: currentPageNumber];
-		
+
         // Release the display(s)
         if (CGDisplayRelease( kCGDirectMainDisplay ) != kCGErrorSuccess) {
         	// NSLog( @"Couldn't release the display(s)!" );
@@ -10211,7 +11156,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         	// its window level to the same one as the shield window level,
         	// or the user won't see anything.
 			}
-			
+
 		[self.fullscreenWindow orderOut:self];
 		}
 }
@@ -10219,18 +11164,18 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 - (void)displayConsole: (id)sender
 {
 	NSString	*theSource;
-	
+
 	theSource = [_textStorage string];
 	if ([self checkMasterFile: theSource forTask:RootForConsole])
 		return;
 	if ([self checkRootFile_forTask: RootForConsole])
-		return;	
+		return;
 	[outputWindow makeKeyAndOrderFront: self];
 }
 
 - (void)fillLogWindowIfVisible
 {
-	
+
 	if ([self.logWindow  isVisible])
 		[self fillLogWindow];
 }
@@ -10248,8 +11193,8 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSDate              *myDate;
     NSString            *enginePath, *tetexBinPath;
     NSMutableArray      *args;
-    
- 
+
+
 
 	// theEncoding = NSISOLatin9StringEncoding;
     defaultEncoding = NSISOLatin9StringEncoding;
@@ -10259,7 +11204,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 		return NO;
 	logPath = [[[[self fileURL] path]stringByDeletingPathExtension] stringByAppendingPathExtension:self.logExtension];
 
-	if ([[NSFileManager defaultManager] fileExistsAtPath: logPath] && [[NSFileManager defaultManager] isReadableFileAtPath: logPath]) 
+	if ([[NSFileManager defaultManager] fileExistsAtPath: logPath] && [[NSFileManager defaultManager] isReadableFileAtPath: logPath])
 		{
 			logData = [[NSFileManager defaultManager] contentsAtPath:logPath];
 			if (!logData)
@@ -10267,46 +11212,46 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			content = [[NSString alloc] initWithData:logData encoding:theEncoding] ;
             if (!content)
                 content = [[NSString alloc] initWithData:logData encoding:defaultEncoding] ;
-            if (!content) 
+            if (!content)
                 return NO;
-            
-            
+
+
             errorFlag = NO;
             if ([errorLog intValue] != 0)
                 errorFlag = YES;
-            
+
             if (errorFlag)
             {
-                 
+
                 NSUInteger  myLength, lineLength;
                 NSRange     lineRange, searchRange, errorRange;
                 NSString    *lineString, *previousLine, *searchString;
                 NSUInteger  start, end;
                 NSString    *numberOutput;
                 NSInteger   errorLineNumber;
-                
-                
+
+
                 // NSLog(@"got here");
                 [self.logTextView setString: @""];
-                
+
                 myLength = [content length];
                 lineRange.location = 0;
                 lineRange.length = 1;
                 searchString = @"l.";
-                
+
                 previousLine = @"\r";
-                
+
                 while (lineRange.location < myLength) {
                     [content getLineStart: &start end: &end contentsEnd: nil forRange: lineRange];
                     lineRange.location = end;
-                    
+
                     searchRange.location = start;
                     searchRange.length = end - start;
                     lineString = [content substringWithRange: searchRange];
                     lineLength = [lineString length];
-                    
+
                     errorRange = [lineString rangeOfString: searchString];
-                    
+
                      if (errorRange.location != NSNotFound)
                      //    [self.logTextView insertText: lineString];
                     {
@@ -10321,23 +11266,23 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                                 [self.logTextView insertText: lineString];
                                 [self.logTextView insertText: @"\r"];
                             }
-                            
+
                         }
-                       
+
                     }
                     previousLine = lineString;
-                    
+
                    // [self.logTextView insertText: lineString];
                 }
-                            
-                    
-                
+
+
+
              //   [self.logWindow setRepresentedFilename: logPath];
              //   [self.logWindow setTitle:[logPath lastPathComponent]];
              //   return YES;
-                
+
             }
-            
+
             flags = @"-";
             if ([eLog intValue] != 0)
                 flags = [flags stringByAppendingString: @"s"];
@@ -10363,7 +11308,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 flags = [flags stringByAppendingString: @"v"];
             if ([wLog intValue] != 0)
                 flags = [flags stringByAppendingString: @"w"];
-            
+
             if (([flags length] == 1) && (!errorFlag) || (! [self.logExtension isEqualToString:@"log"]))
                 [self.logTextView setString: content];
             else {
@@ -10399,23 +11344,23 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 else {
                     self.texloganalyserTask = nil;
                     }
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             }
-            
+
 			[self.logWindow setRepresentedFilename: logPath];
 			[self.logWindow setTitle:[logPath lastPathComponent]];
 			return YES;
@@ -10434,9 +11379,9 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 -(void)reDisplayLog
 {
     NSString *theSource;
-    
+
     self.logExtension = @"log";
-    
+
     theSource = [_textStorage string];
 	if ([self checkMasterFile: theSource forTask:RootForRedisplayLog])
 		return;
@@ -10452,12 +11397,12 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	NSString	*tempResult;
 	NSInteger			result;
 	BOOL		askForExtension;
-		
+
 	if (GetCurrentKeyModifiers() & cmdKey)
 		askForExtension = YES;
 	else
 		askForExtension = NO;
-	
+
 	if (askForExtension) {
 		result = [NSApp runModalForWindow: extensionPanel];
 		[extensionPanel close];
@@ -10474,17 +11419,17 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 	else
 	//	newLogExtension = [NSString stringWithString:@"log"];
         newLogExtension = @"log";
-	
+
 //	[newLogExtension retain];
 //	if (self.logExtension != nil)
 //		[self.logExtension release];
 	self.logExtension = newLogExtension;
-	
+
 	theSource = [_textStorage string];
 	if ([self checkMasterFile: theSource forTask:RootForLogFile])
 		return;
 	if ([self checkRootFile_forTask: RootForLogFile])
-		return;	
+		return;
 	if ([self fillLogWindow])
 		[self.logWindow makeKeyAndOrderFront: self];
 }
@@ -10507,7 +11452,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
     NSRange tempRange, forwardRange, markerRange, commentRange;
     NSString *text;
-    
+
     text = [textView string];
     tempRange = [textView selectedRange];
     tempRange.location += tempRange.length; // move the range to after the selection (a la Find) to avoid re-finding (HS)
@@ -10540,7 +11485,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
     NSRange tempRange, backwardRange, markerRange, commentRange;
     NSString *text;
-	
+
     text = [textView string];
     tempRange = [textView selectedRange];
     //set up a search range from string start to beginning of selection
@@ -10572,7 +11517,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
     NSRange tempRange, forwardRange, markerRange, commentRange;
     NSString *text;
-	
+
     text = [textView string];
     tempRange = [textView selectedRange];
     tempRange.location += tempRange.length; // move the range to after the selection (a la Find) to avoid re-finding (HS)
@@ -10611,7 +11556,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 {
     NSRange tempRange, backwardRange, markerRange, commentRange;
     NSString *text;
-	
+
     text = [textView string];
     tempRange = [textView selectedRange];
     //set up a search range from string start to beginning of selection
@@ -10674,33 +11619,33 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 
 // end BULLET (H. Neary) (modified by (HS))
 
-/* First version; see just below for revised version for ConTeXt 
+/* First version; see just below for revised version for ConTeXt
 - (void)closeCurrentEnvironment:(id)sender
 {
 	NSRange  oldRange;
 	NSString *newString = nil;
-	
+
 	autoCompleting = YES;
-	
+
 	oldRange = [textView selectedRange];
-	
+
 	NSString *regex = @"(begin|end)\\{(.*?)\\}";
 	if(g_texChar == YEN){
 		regex = [NSString stringWithFormat:@"%c%@", YEN, regex];
 	}else{
 		regex = [@"\\\\" stringByAppendingString:regex];
 	}
-	
+
 	NSEnumerator* enumerator = [[[OGRegularExpression regularExpressionWithString:regex]
 								 allMatchesInString:[[[textView textStorage] string] substringToIndex:oldRange.location]]
 								reverseObjectEnumerator];
-	
+
 	OGRegularExpressionMatch *match;
 	NSString *environment;
 	NSInteger increment, count_value;
 	NSNumber *count;
 	NSMutableDictionary *environmentStack = [NSMutableDictionary dictionaryWithCapacity:0];
-	
+
 	while((match = [enumerator nextObject])) {
 		increment = [[match substringAtIndex:1] isEqualToString:@"end"] ? 1 : -1;
 		environment = [match substringAtIndex:2];
@@ -10724,60 +11669,60 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			}
 		}
 	}
-	
+
 	if(newString){
 		newString = [NSString stringWithFormat:@"%cend{%@}", g_texChar, newString];
 		if ([textView shouldChangeTextInRange:oldRange replacementString:newString]) {
 			[textView replaceCharactersInRange:oldRange withString:newString];
 			[textView didChangeText];
-			
+
 			[[textView undoManager] setActionName:NSLocalizedString(@"Close Current Environment", @"Close Current Environment")];
 		}
 	}else {
 		NSBeep();
 	}
-	
+
 	autoCompleting = NO;
 }
 */
 
 
 /*
- 
+
 // Second version; this version has a subtle error discovered by Alan Munn.
 
 - (void)closeCurrentEnvironment:(id)sender
 {
 	NSRange  oldRange;
 	NSString *newString = nil;
-	
+
 	autoCompleting = YES;
-	
+
 	oldRange = [textView selectedRange];
-	
+
 	NSString *regex = @"(begin|end)\\{(.*?)\\}|(start|stop)([a-zA-Z]+)";
 	if(g_texChar == YEN){
 		regex = [NSString stringWithFormat:@"%c%@", YEN, regex];
 	}else{
 		regex = [@"\\\\" stringByAppendingString:regex];
 	}
-	
+
 	NSEnumerator* enumerator = [[[OGRegularExpression regularExpressionWithString:regex]
 								 allMatchesInString:[[[textView textStorage] string] substringToIndex:oldRange.location]]
 								reverseObjectEnumerator];
-	
+
 	OGRegularExpressionMatch *match;
 	NSString *environment, *prefix, *stackKey;
 	int increment, count_value;
 	NSNumber *count;
 	NSMutableDictionary *environmentStack = [NSMutableDictionary dictionaryWithCapacity:0];
-	
+
 	while((match = [enumerator nextObject])) {
 		if(!(prefix = [match substringAtIndex:1])) prefix =  [match substringAtIndex:3];
 		if(!(environment = [match substringAtIndex:2])) environment = [match substringAtIndex:4];
 		increment = ([[match substringAtIndex:1] isEqualToString:@"end"] || [[match substringAtIndex:3] isEqualToString:@"stop"]) ? 1 : -1;
 		stackKey = [(([prefix isEqualToString:@"begin"] || [prefix isEqualToString:@"end"] ) ? @"A" : @"B") stringByAppendingString:environment];
-		
+
 		count = [environmentStack objectForKey:stackKey];
 		if (count) {
 			count_value = [count intValue];
@@ -10798,24 +11743,24 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 			}
 		}
 	}
-	
+
 	if(newString){
 		if ([prefix isEqualToString:@"begin"]) {
 			newString = [NSString stringWithFormat:@"%cend{%@}", g_texChar, newString];
 		}else{
 			newString = [NSString stringWithFormat:@"%cstop%@", g_texChar, newString];
 		}
-        
+
 		if ([textView shouldChangeTextInRange:oldRange replacementString:newString]) {
 			[textView replaceCharactersInRange:oldRange withString:newString];
 			[textView didChangeText];
-			
+
 			[[textView undoManager] setActionName:NSLocalizedString(@"Close Current Environment", @"Close Current Environment")];
 		}
 	}else {
 		NSBeep();
 	}
-	
+
 	autoCompleting = NO;
 }
 */
@@ -10826,19 +11771,19 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
 // Here is Munn's bug
 
 /*
- 
-  
+
+
 */
 
 - (void)closeCurrentEnvironment:(id)sender
 {
     NSRange  oldRange;
     NSString *newString = nil;
-    
+
     autoCompleting = YES;
-    
+
     oldRange = [textView selectedRange];
-    
+
     NSString *regex = @"(begin|end)\\{(.*?)\\}";
     NSString *regexcontext =  @"(begin|end)\\{(.*?)\\}|(start|stop)([a-zA-Z]+)";
     if(g_texChar == YEN){
@@ -10848,18 +11793,18 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         regex = [@"\\\\" stringByAppendingString:regex];
         regexcontext = [@"\\\\" stringByAppendingString:regexcontext];
     }
-    
+
     NSEnumerator* enumerator = [[[OGRegularExpression regularExpressionWithString:regex]
                                  allMatchesInString:[[[textView textStorage] string] substringToIndex:oldRange.location]]
                                 reverseObjectEnumerator];
-    
+
     OGRegularExpressionMatch *match;
     NSString *environment, *prefix, *stackKey;
     NSInteger increment, count_value;
     NSNumber *count;
     prefix = @"begin";
     NSMutableDictionary *environmentStack = [NSMutableDictionary dictionaryWithCapacity:0];
-    
+
     while((match = [enumerator nextObject])) {
         increment = [[match substringAtIndex:1] isEqualToString:@"end"] ? 1 : -1;
         environment = [match substringAtIndex:2];
@@ -10883,20 +11828,20 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
             }
         }
     }
-    
+
     if (!newString)
     {
-        
+
         NSEnumerator* enumerator = [[[OGRegularExpression regularExpressionWithString:regexcontext]
                                      allMatchesInString:[[[textView textStorage] string] substringToIndex:oldRange.location]]
                                     reverseObjectEnumerator];
-        
+
         while((match = [enumerator nextObject])) {
         if(!(prefix = [match substringAtIndex:1])) prefix =  [match substringAtIndex:3];
         if(!(environment = [match substringAtIndex:2])) environment = [match substringAtIndex:4];
         increment = ([[match substringAtIndex:1] isEqualToString:@"end"] || [[match substringAtIndex:3] isEqualToString:@"stop"]) ? 1 : -1;
         stackKey = [(([prefix isEqualToString:@"begin"] || [prefix isEqualToString:@"end"] ) ? @"A" : @"B") stringByAppendingString:environment];
-        
+
         count = [environmentStack objectForKey:stackKey];
         if (count) {
             count_value = [count intValue];
@@ -10918,8 +11863,8 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         }
     }
     }
-        
-    
+
+
     if(newString){
         if ([prefix isEqualToString:@"begin"]) {
             newString = [NSString stringWithFormat:@"%cend{%@}", (int)g_texChar, newString];
@@ -10929,20 +11874,20 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         if ([textView shouldChangeTextInRange:oldRange replacementString:newString]) {
             [textView replaceCharactersInRange:oldRange withString:newString];
             [textView didChangeText];
-            
+
             [[textView undoManager] setActionName:NSLocalizedString(@"Close Current Environment", @"Close Current Environment")];
         }
     }else {
         NSBeep();
     }
-    
+
     autoCompleting = NO;
 }
 
 - (void)enterFullScreen: (NSNotification *)notification
 {
-    
-    
+
+
     oldPageStyle = [self.myPDFKitView pageStyle];
     oldResizeOption = [self.myPDFKitView resizeOption];
     fullscreenPageStyle = [SUD integerForKey: fullscreenPageStyleKey];
@@ -10953,18 +11898,18 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     //     fullscreenResizeOption = 3;
     if ([self.pdfKitWindow windowIsSplit])
         {
-        [self.pdfKitWindow splitPdfKitWindow:self]; 
+        [self.pdfKitWindow splitPdfKitWindow:self];
         }
     [self.myPDFKitView changePDFViewSizeTo:fullscreenResizeOption];
     [self.myPDFKitView changePageStyleTo: fullscreenPageStyle];
     [self.myPDFKitView2 changePDFViewSizeTo:fullscreenResizeOption];
     [self.myPDFKitView2 changePageStyleTo: fullscreenPageStyle];
-   
+
 }
 - (void)exitFullScreen: (NSNotification *)notification
 {
     NSInteger fullscreenPageStyleNew, fullscreenResizeOptionNew;
-    
+
     fullscreenPageStyleNew = [self.myPDFKitView pageStyle];
     fullscreenResizeOptionNew = [self.myPDFKitView resizeOption];
     if (fullscreenPageStyleNew != fullscreenPageStyle)
@@ -10973,7 +11918,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [SUD setInteger: fullscreenResizeOptionNew forKey: fullscreenResizeOptionKey];
     if ([self.pdfKitWindow windowIsSplit])
         {
-        [self.pdfKitWindow splitPdfKitWindow:self]; 
+        [self.pdfKitWindow splitPdfKitWindow:self];
         }
     [self.myPDFKitView changePDFViewSizeTo: oldResizeOption];
     [self.myPDFKitView changePageStyleTo:oldPageStyle];
@@ -10994,9 +11939,9 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSUInteger      count = 0;
     NSRange         theRange;
     NSString        *theString;
-    
+
     NSMutableArray *items = [NSMutableArray arrayWithCapacity:10];
-    
+
     theRange = [textView1 selectedRange];
     if (theRange.length > 0) {
         theString = [[textView1 string] substringWithRange: theRange];
@@ -11011,7 +11956,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
             [items addObject: theString];
         }
     }
-    
+
     if (count == 0) {
         NSURL *documentURL = [self fileURL];
         if (documentURL) {
@@ -11019,7 +11964,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
             [items addObject:documentURL];
             }
     }
-    
+
      if (count > 0) {
          NSSharingServicePicker *picker = [[NSSharingServicePicker alloc] initWithItems: items];
         if ([sender isKindOfClass: [NSMenuItem class]])
@@ -11039,19 +11984,19 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSData          *data;
     NSImage         *theImage;
     NSPDFImageRep   *thePDFImageRep;
-    
+
     NSMutableArray *items = [NSMutableArray arrayWithCapacity:10];
 
     if (self.rootDocument)
         thePDFKitView = [self.rootDocument pdfKitView];
     else
         thePDFKitView = [self pdfKitView];
-    
+
     if (thePDFKitView) {
-        
+
         // [thePDFKitView lockFocus];
         // theImage = [thePDFKitView imageFromSelection];
-        
+
         if (atLeastMavericks) {
             data = [thePDFKitView PDFImageDataFromSelection];
             if (data != nil) {
@@ -11062,14 +12007,14 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 [items addObject: theImage];
                 }
             }
-        
+
         else {
-         
+
            //  NOTE: PDF data would be preferable, but experiments show that the code sometimes works
            //  and sometimes fails. When it fails, the error message is about drawing when the drawing context
            //  is nil. This error MIGHT come from the mail widget in the sharing system.
             // data = [thePDFKitView imageDataFromSelectionType: [SUD integerForKey: [SUD integerForKey: PdfExportTypeKey]]];
-        
+
             data = [thePDFKitView imageDataFromSelectionType: IMAGE_TYPE_PNG];
             if (data != nil) {
                 theImage = [[NSImage alloc] initWithData:data];
@@ -11077,9 +12022,9 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 [items addObject: theImage];
                 }
             }
-        
+
          // data = [thePDFKitView imageDataFromSelectionType: [SUD integerForKey: [SUD integerForKey: PdfExportTypeKey]]];
-     
+
 /*
         // data = [thePDFKitView imageDataFromSelectionType: [SUD integerForKey: PdfExportTypeKey]];
         data = [thePDFKitView imageDataFromSelectionType: IMAGE_TYPE_PDF];
@@ -11087,7 +12032,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         // data = [thePDFKitView imageDataFromSelectionType: [SUD integerForKey: PdfExportTypeKey]];
         if (data != nil)
         theImage = [[NSImage alloc]initWithData:data];
-        
+
         // NSImage *theImage = [self.myPDFKitView imageFromSelection];
         if (theImage) {
             count++;
@@ -11096,7 +12041,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [theImage release];
     }
 */
-    
+
     if (count == 0) {
         NSURL *documentURL = [self fileURL];
         if (documentURL) {
@@ -11112,7 +12057,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 if (previewPath)
                     previewURL = [NSURL fileURLWithPath: previewPath];
                 }
-            
+
             if (previewURL) {
                 count++;
                 [items addObject: previewURL];
@@ -11141,7 +12086,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
              @"edu.uo.texshop.ltx",
              @"edu.uo.texshop.ctx",
              @"edu.uo.texshop,texi"];
-    
+
 }
 */
 
@@ -11151,16 +12096,16 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
     NSRange         theRange;
     NSString        *theFileName, *thePDFName;
     BOOL            interchange;
-    
+
     interchange = [SUD boolForKey: SwitchSidesKey];
-    
+
     if ((! useFullSplitWindow) && (! self.rootDocument) && (fileIsTex) && (! _externalEditor))
         {
-            
+
             theFileName = [[self fileURL] path];
            if  (theFileName == nil)
                 return;
-            
+
             thePDFName = [[theFileName stringByDeletingPathExtension] stringByAppendingPathExtension:@"pdf"];
             if (! [[NSFileManager defaultManager] fileExistsAtPath: thePDFName])
                 return;
@@ -11171,7 +12116,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 theRange = [theText rangeOfString:@"% !TEX root ="];
             if (theRange.location != NSNotFound)
                 return;
-        
+
             if ([myDrawer state] == NSDrawerOpenState)
                 [myDrawer toggle: self];
             [myDrawer close];
@@ -11193,18 +12138,18 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
                 [rightView addSubview: self.pdfKitWindow.pdfKitSplitView];
                 [self.pdfKitWindow.pdfKitSplitView setFrame: [rightView bounds]];
                 }
-            
-            
-              
-            
+
+
+
+
             [self.splitController setWindow: fullSplitWindow];
             [self addWindowController: self.splitController];
             NSString *splitPosition = [SUD stringForKey:DocumentSplitWindowPositionKey];
             if ([splitPosition length] > 5)
                [fullSplitWindow setFrameFromString:splitPosition];
-            
+
          //   [fullSplitWindow mergeAllWindows:self]; // WOW this line makes all split windows load as tabs
-            
+
             [self.splitController showWindow: nil];
             // [fullSplitWindow makeKeyAndOrderFront:self];
             [textWindow orderOut:self];
@@ -11212,8 +12157,8 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
             useFullSplitWindow = YES;
             [myDrawer setParentWindow: fullSplitWindow];
             // [self setWindow: fullSplitWindow];
-            
-            
+
+
         }
 }
 
@@ -11246,7 +12191,7 @@ static NSArray *tabStopArrayForFontAndTabWidth(NSFont *font, NSUInteger tabWidth
         [fullSplitWindow makeFirstResponder: self.myPDFKitView];
     else
         [fullSplitWindow makeFirstResponder: textView];
-        
+
 }
 
 
