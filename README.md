@@ -51,7 +51,7 @@ TeXForge adds shortcuts familiar from VS Code and other editors, while keeping a
 | Default theme | LiteTheme | Solarized Lite |
 | Default font | System user font | SF Mono Regular 12pt |
 | App icon | Blue | Amber/Copper |
-| Bundle ID | `edu.uoregon.TeXShop` | `com.chkwon.TeXForge` |
+| Bundle ID | `edu.uoregon.TeXShop` | `net.chkwon.TeXForge` |
 
 Everything else -- typesetting engines, PDF viewer, SyncTeX, macro system, multi-language support, OgreKit find/replace -- is inherited from the original TeXShop codebase.
 
