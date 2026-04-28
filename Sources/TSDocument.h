@@ -99,31 +99,31 @@ enum RootCommand
 	IBOutlet NSTextView			*textView;		/*" textView displaying the current TeX source "*/
 	IBOutlet NSScrollView		*scrollView;		/*" scrollView for textView"*/
 	IBOutlet NSWindow			*textWindow;		/*" window displaying the current document "*/
-	
+
 	IBOutlet MyPDFView			*pdfView;		/*" view displaying the current preview "*/
 	IBOutlet NSWindow			*pdfWindow;		/*" window displaying the current pdf preview "*/
-    
+
     IBOutlet NSPanel            *scrapWindow;
     IBOutlet NSPanel            *scrapPDFWindow;
     IBOutlet ScrapTextView     *scrapTextView;
     IBOutlet ScrapPDFKitView    *scrapPDFKitView;
-    
+
     IBOutlet NSPanel            *stringWindow;
     IBOutlet NSTextView         *stringWindowTextView;
     IBOutlet NSButton           *stringLeft;
     IBOutlet NSButton           *stringCenter;
     IBOutlet NSButton           *stringRight;
-    
-    
+
+
     IBOutlet    NSWindow        *fullSplitWindow;
     IBOutlet    NSView          *leftView;
     IBOutlet    NSView          *rightView;
     IBOutlet    NSDrawer        *myDrawer;
     BOOL                        useFullSplitWindow;
-    
+
     IBOutlet    NSSearchField   *mySearchField;
     IBOutlet    NSSearchField   *myFullSearchField;
-    
+
 
 	// IBOutlet MyPDFKitView		*myPDFKitView;
 	// IBOutlet TSPreviewWindow	*pdfKitWindow;
@@ -180,7 +180,7 @@ enum RootCommand
     IBOutlet NSPopUpButton      *slabels;  //NDS added dropdown for going to a label
     NSToolbarItem               *theLabels;
     NSToolbarItem               *theSLabels;
-    
+
 
 	IBOutlet NSMatrix			*mouseModeMatrix; // mitsu 1.29 (O)
 	IBOutlet NSMenu				*mouseModeMenu; // mitsu 1.29 (O)
@@ -191,14 +191,14 @@ enum RootCommand
 	IBOutlet NSButton           *showFullPathButton; // added by Terada
     IBOutlet NSButton			*autoCompleteSplitButton;
     IBOutlet NSButton           *indexColorSplitBox;
-    
 
-    
+
+
     IBOutlet	id              gotopageOutlet;
     IBOutlet	id              magnificationOutlet;
     IBOutlet	id              previousButton;
     IBOutlet	id              nextButton;
-    
+
     IBOutlet    NSControl       *eLog;
     IBOutlet    NSControl       *fLog;
     IBOutlet    NSControl       *hLog;
@@ -212,19 +212,19 @@ enum RootCommand
     IBOutlet    NSControl       *vLog;
     IBOutlet    NSControl       *wLog;
     IBOutlet    NSControl       *errorLog;
-    
+
     IBOutlet    NSTextField     *saveFormatLabel;
     IBOutlet    NSPopUpButton   *saveFormatMenu;
     NSSavePanel                 *theSavePanel;
-    
+
     IBOutlet    NSBox           *myURLField;
-    
+
     IBOutlet    NSMenu          *annotationMenu;
     IBOutlet    NSPanel         *annotationChoices;
-    
-    
+
+
     NSMenu				*mouseModeMenuKit; // mitsu 1.29 (O)
-    
+
 //	NSWindow					*logWindow;
 //	NSTextView					*logTextView;
 //	NSScrollView				*logScrollView;
@@ -232,17 +232,17 @@ enum RootCommand
 
 //  NSConnection    *_completionConnection; //Adam Maxwell
 //  id              _completionServer; //Adam Maxwell
-    
-    
+
+
 	BOOL		windowIsSplit;
 	BOOL		lineNumbersShowing;
 	BOOL		invisibleCharactersShowing; // added by Terada
 	BOOL				isFullScreen;
-    
+
 //	TSFullscreenWindow	*fullscreenWindow;
 //	PDFView				*fullscreenPDFView;
 //   TSDocument          *rootDocument;
-    
+
 
     NSWindow            *WindowAfterTypeset;
 	NSStringEncoding	_encoding;
@@ -270,16 +270,16 @@ enum RootCommand
 //	NSPipe              *synctexPipe;
 //	NSFileHandle        *synctexHandle;
     struct synctex_scanner_t *scanner;
-    
-   
+
+
 
 //	NSDate		*startDate;
 //	NSPDFImageRep	*texRep;
 //	NSData		*previousFontData;	/*" holds font data in case preferences change is cancelled "*/
 	BOOL		fileIsTex;
-    
 
-    
+
+
 //    TSDocumentType			_documentType;
 	NSInteger			errorLine[NUMBEROFERRORS];
 	NSString	*errorLinePath[NUMBEROFERRORS];
@@ -287,16 +287,16 @@ enum RootCommand
 	NSInteger			errorNumber;
 	NSInteger			whichError;
 	DefaultTypesetMode			theScript;		/*" script currently executing; 100, 101, 102 "*/
-	
+
 	NSUInteger	colorStart, colorEnd;
 //	NSDictionary		*regularColorAttribute;
 //	NSDictionary		*commandColorAttribute;
 //	NSDictionary		*commentColorAttribute;
 //	NSDictionary		*markerColorAttribute;
 //	NSDictionary		*indexColorAttribute;
-    
+
     dispatch_queue_t process_queue;
-    
+
     // for full screen operation
     NSInteger           oldPageStyle;
     NSInteger           oldResizeOption;
@@ -305,10 +305,10 @@ enum RootCommand
 
 
 //	NSTimer		*tagTimer;		/*" Timer that repeatedly handles tag updates "*/
- 
+
 	NSUInteger	tagLocation;
 	NSUInteger	tagLocationLine;
-    
+
  	BOOL				makeError;
 	SEL					tempSEL;
 	BOOL                taskDone;
@@ -319,7 +319,7 @@ enum RootCommand
 	BOOL				willClose;
     BOOL                doAbort;
     BOOL                xmlNoParameter;
-  
+
 	BOOL		_externalEditor;
 // added by mitsu --(H) Macro menu; macroButton
 	BOOL		doAutoComplete;
@@ -334,9 +334,9 @@ enum RootCommand
     // for Jobs
     NSString    *parameterString;
     BOOL        parameterExists;
-    
+
     BOOL        fromAlternate;
-    
+
 //	NSDate              *_pdfLastModDate;
 //	NSTimer             *_pdfRefreshTimer;
 //  id                  _pdfActivity;
@@ -365,11 +365,11 @@ enum RootCommand
 	NSInteger lastCursorLocation; // added by Terada
 	NSInteger lastStringLength; // added by Terada
 	BOOL lastInputIsDelete; // added by Terada
-	
+
 	//Michael Witten: mfwitten@mit.edu
 	NSLineBreakMode		lineBreakMode;
 	// end witten
-    
+
 // FIX RULER SCROLL
     NSRect lastDocumentVisibleRect;  // added by Terada (for Lion bug)
     NSRect lastDocumentVisibleRect2;  // added by Terada (for Lion bug)
@@ -380,21 +380,21 @@ enum RootCommand
 // ULRICH BAUER PATCH
    dispatch_source_t dispatch_source;
 // END PATCH
-    
+
 // NSDate              *_pdfLastModDate;
 // NSTimer             *_pdfRefreshTimer;
 // id                  _pdfActivity;
-    
+
 //    NoodleLineNumberView		*lineNumberView1;
 //	NoodleLineNumberView		*lineNumberView2;
 //	NoodleLineNumberView		*logLineNumberView;
 
- 
+
 //  MySelection		*mSelection;
 //  NSTextStorage	*_textStorage;
 
 
-    
+
 }
 
 
@@ -511,7 +511,7 @@ enum RootCommand
 
 @property (retain)  TSWindowController  *standardController;
 @property (retain)  TSWindowController  *splitController;
-    
+
 @property           BOOL            useTabs;
 @property           BOOL            useTabsWithFiles;
 @property           NSInteger       numberOfTabs;
@@ -670,7 +670,7 @@ enum RootCommand
 // - (void) updateTagsAtClick2:(NSNotification *)notification;
 - (void) TagsAtClick2:(NSNotification *)notification;
 - (void) LabelsAtClick2:(NSNotification *)notification;
-  
+
 
 - (void) doMatrix:(NSNotification *)notification; // Matrix by Jonas
 - (void) changeAutoComplete: sender;
@@ -752,6 +752,7 @@ enum RootCommand
 - (void)resignSpelling;
 - (void)closeCurrentEnvironment:(id)sender;
 - (void)invalidateCompletionConnection;
+- (NSArray *)bibliographyCompletionsForSearchString:(NSString *)searchString;
 // Forward Routines Not Found by Source
 - (BOOL)fillLogWindow;
 - (void)fillLogWindowIfVisible;
@@ -806,7 +807,7 @@ enum RootCommand
  - (void)registerForConnectionDidDieNotification;
 //----------//------------------
 
-// - (void) printDocumentWithSettings: (NSDictionary :)printSettings showPrintPanel:(BOOL)showPrintPanel delegate:(id)delegate 
+// - (void) printDocumentWithSettings: (NSDictionary :)printSettings showPrintPanel:(BOOL)showPrintPanel delegate:(id)delegate
 // 	didPrintSelector:(SEL)didPrintSelector contextInfo:(void *)contextInfo;
 //-----------------------------------------------------------------------------
 // Timer methods
@@ -960,6 +961,9 @@ enum RootCommand
 - (void) checkFileLinks:(NSString *)theSource;
 - (void) checkFileLinksA;
 // End Bauer
+- (NSURL *)bibliographyRootFileURLForSource:(NSString *)theSource;
+- (NSURL *)bibliographyEffectiveSourceURL;
+- (NSString *)bibliographyEffectiveSourceString;
 - (NSString *) readInputArg:(NSString *)fileLine atIndex:(NSUInteger)i
 		homePath:(NSString *)home job:(NSString *)jobname;
 - (NSString *) decodeFile:(NSString *)relFile homePath:(NSString *)home job:(NSString *)jobname;
@@ -1072,4 +1076,3 @@ enum RootCommand
 
 
 // END PATCH
-

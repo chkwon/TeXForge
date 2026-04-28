@@ -1740,6 +1740,7 @@
 				40C894C306080105000B55B4 /* CopyFiles */,
 				522BC4C20A2A007A007CAB82 /* CopyFiles */,
 				40C889D10F1A803E00B5B8A9 /* CopyFiles */,
+				CCF00001A0000000C0F11070 /* Re-sign Embedded Frameworks */,
 			);
 			buildRules = (
 				40E08A5707B741D50025F50B /* PBXBuildRule */,
@@ -2057,6 +2058,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXRezBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CCF00001A0000000C0F11070 /* Re-sign Embedded Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Re-sign Embedded Frameworks";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" = \"NO\" ]; then\n  exit 0\nfi\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nAPP_BUNDLE=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\nSIGNING_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:-}\"\nif [ -z \"$SIGNING_IDENTITY\" ]; then\n  SIGNING_IDENTITY=\"${CODE_SIGN_IDENTITY:-}\"\nfi\nif [ -z \"$SIGNING_IDENTITY\" ]; then\n  SIGNING_IDENTITY=\"-\"\nfi\nif [ -d \"$FRAMEWORKS_DIR\" ]; then\n  find \"$FRAMEWORKS_DIR\" -maxdepth 1 -type d -name '*.framework' | while IFS= read -r framework; do\n    xattr -cr \"$framework\"\n    codesign --force --sign \"$SIGNING_IDENTITY\" --timestamp=none \"$framework\"\n  done\nfi\ncodesign --force --sign \"$SIGNING_IDENTITY\" --preserve-metadata=identifier,requirements,flags,runtime,entitlements --timestamp=none \"$APP_BUNDLE\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		407881770519249A006979EA /* Sources */ = {
