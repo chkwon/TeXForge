@@ -24,6 +24,16 @@ Everything else (typesetting, PDF viewer, SyncTeX, macros, multi-file projects, 
 - Built app: `build/Debug/TeXForge.app` or `build/Release/TeXForge.app`
 - The build script handles a macOS quirk: `.nib`/`.rtfd` package directories get auto-assigned `FinderInfo` extended attributes that block code signing, so `build.sh` strips them and re-signs after compilation
 
+### Developer ID signing and notarization (optional)
+
+`build.sh` defaults to ad-hoc signing for fast local iteration. To produce a Developer ID-signed (and optionally notarized) build, pass these env vars:
+
+- `TEXFORGE_SIGN_IDENTITY` — full identity string, e.g. `"Developer ID Application: Jane Doe (TEAMID)"`. When set, signing also enables hardened runtime (`--options runtime`) and a secure timestamp (`--timestamp`).
+- `TEXFORGE_NOTARY_PROFILE` — name of a `notarytool` keychain profile created via `xcrun notarytool store-credentials`. When set (and `TEXFORGE_SIGN_IDENTITY` is set), `build.sh` zips the app, submits it to Apple, waits for the result, then staples.
+- `TEXFORGE_NOTARY_API_KEY_PATH` / `TEXFORGE_NOTARY_API_KEY_ID` / `TEXFORGE_NOTARY_API_ISSUER_ID` — alternative to `TEXFORGE_NOTARY_PROFILE` using an App Store Connect API key directly. Used by the GitHub Actions release workflow.
+
+The release workflow (`.github/workflows/release.yml`) requires repo secrets: `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `KEYCHAIN_PASSWORD`, `SIGN_IDENTITY`, `NOTARY_API_KEY_BASE64`, `NOTARY_API_KEY_ID`, `NOTARY_API_ISSUER_ID`.
+
 ## Architecture
 
 ### Document-Based App Pattern
