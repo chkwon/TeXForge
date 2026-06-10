@@ -37,13 +37,27 @@ static const void *kCopilotOverlayKey = &kCopilotOverlayKey;
             method_exchangeImplementations(originalMethod, swizzledMethod);
         }
 
-        // Also swizzle textDidChange to detect edits
+        // Also swizzle didChangeText to detect edits.
+        // TSTextView does not override didChangeText, so class_addMethod must
+        // install our override on TSTextView itself; exchanging the inherited
+        // Method would hijack NSTextView.didChangeText for every text view in
+        // the app (field editors, the find bar) and break their change
+        // notifications.
         SEL origTextDidChange = @selector(didChangeText);
         SEL swizTextDidChange = @selector(copilot_didChangeText);
         Method origTDC = class_getInstanceMethod(cls, origTextDidChange);
         Method swizTDC = class_getInstanceMethod(cls, swizTextDidChange);
         if (origTDC && swizTDC) {
-            method_exchangeImplementations(origTDC, swizTDC);
+            BOOL didAddTDC = class_addMethod(cls, origTextDidChange,
+                                             method_getImplementation(swizTDC),
+                                             method_getTypeEncoding(swizTDC));
+            if (didAddTDC) {
+                class_replaceMethod(cls, swizTextDidChange,
+                                    method_getImplementation(origTDC),
+                                    method_getTypeEncoding(origTDC));
+            } else {
+                method_exchangeImplementations(origTDC, swizTDC);
+            }
         }
 
         // Inject "Copilot Settings..." menu item after app finishes launching

@@ -25,6 +25,7 @@
 #import <AppKit/AppKit.h>
 #import "TSTextEditorWindow.h"
 #import "TSDocument.h" // for the definition of isTeX (move this to a separate file!!)
+#import "TSTextView.h"
 #import "globals.h"
 #import "GlobalData.h"
 #import "TSDocumentController.h"
@@ -233,7 +234,15 @@
 //	if (([theEvent type] == NSEventTypeFlagsChanged) && ([theEvent modifierFlags] & NSCommandKeyMask))
 //		NSLog(@"yes");
 
-	if ([theEvent type] == NSEventTypeKeyDown) {
+	// The custom editor shortcuts below apply only while the source text view
+	// is active; the window sees every keystroke, including ones meant for the
+	// find bar's field editor or other controls, and must not steal those.
+	// characters/charactersIgnoringModifiers are empty for dead keys, so guard
+	// before characterAtIndex:.
+	if ([theEvent type] == NSEventTypeKeyDown
+		&& [[self firstResponder] isKindOfClass:[TSTextView class]]
+		&& [[theEvent characters] length] > 0
+		&& [[theEvent charactersIgnoringModifiers] length] > 0) {
 		NSEventModifierFlags flags = [theEvent modifierFlags];
 		unichar c = [[theEvent characters] characterAtIndex:0];
 		unichar ci = [[theEvent charactersIgnoringModifiers] characterAtIndex:0];
