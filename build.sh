@@ -51,19 +51,15 @@ if [ "$SIGN_IDENTITY" != "-" ]; then
     CODESIGN_FLAGS+=(--options runtime --timestamp)
 fi
 
-# When using Developer ID, stage the bundle under $TMPDIR for signing.
-# macOS Launch Services continuously re-attaches com.apple.FinderInfo to .app
-# packages in the user's home directory, racing against codesign --timestamp
-# (which is slow because it hits Apple's TSA). /tmp is not subject to this
-# auto-tagging, so signing there is reliable. For ad-hoc we keep signing in
-# place because it's fast enough to win the race.
-if [ "$SIGN_IDENTITY" = "-" ]; then
-    SIGN_TARGET="$APP"
-else
-    STAGE_DIR="$(mktemp -d)"
-    SIGN_TARGET="$STAGE_DIR/TeXForge.app"
-    ditto --noextattr "$APP" "$SIGN_TARGET"
-fi
+# Stage the bundle under $TMPDIR for signing. macOS (Launch Services, and
+# fileproviderd when the checkout lives in an iCloud-synced folder such as
+# ~/Documents) continuously re-attaches com.apple.FinderInfo to .app packages,
+# racing against codesign. /tmp is not subject to this auto-tagging, so
+# signing there is reliable; in-place ad-hoc signing loses the race when the
+# repo is under iCloud sync.
+STAGE_DIR="$(mktemp -d)"
+SIGN_TARGET="$STAGE_DIR/TeXForge.app"
+ditto --noextattr "$APP" "$SIGN_TARGET"
 
 # Strip ALL extended attributes, then re-sign everything.
 # macOS auto-sets FinderInfo on package directories (.nib, .rtfd, .app)

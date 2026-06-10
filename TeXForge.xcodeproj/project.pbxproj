@@ -2077,7 +2077,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" = \"NO\" ]; then\n  exit 0\nfi\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nAPP_BUNDLE=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\nSIGNING_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:-}\"\nif [ -z \"$SIGNING_IDENTITY\" ]; then\n  SIGNING_IDENTITY=\"${CODE_SIGN_IDENTITY:-}\"\nfi\nif [ -z \"$SIGNING_IDENTITY\" ]; then\n  SIGNING_IDENTITY=\"-\"\nfi\nif [ -d \"$FRAMEWORKS_DIR\" ]; then\n  find \"$FRAMEWORKS_DIR\" -maxdepth 1 -type d -name '*.framework' | while IFS= read -r framework; do\n    xattr -cr \"$framework\"\n    codesign --force --sign \"$SIGNING_IDENTITY\" --timestamp=none \"$framework\"\n  done\nfi\ncodesign --force --sign \"$SIGNING_IDENTITY\" --preserve-metadata=identifier,requirements,flags,runtime,entitlements --timestamp=none \"$APP_BUNDLE\"\n";
+			shellScript = "set -eu\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" = \"NO\" ]; then\n  exit 0\nfi\nFRAMEWORKS_DIR=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\nAPP_BUNDLE=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\nSIGNING_IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:-}\"\nif [ -z \"$SIGNING_IDENTITY\" ]; then\n  SIGNING_IDENTITY=\"${CODE_SIGN_IDENTITY:-}\"\nfi\nif [ -z \"$SIGNING_IDENTITY\" ]; then\n  SIGNING_IDENTITY=\"-\"\nfi\nif [ -d \"$FRAMEWORKS_DIR\" ]; then\n  find \"$FRAMEWORKS_DIR\" -maxdepth 1 -type d -name '*.framework' | while IFS= read -r framework; do\n    xattr -cr \"$framework\"\n    codesign --force --sign \"$SIGNING_IDENTITY\" --timestamp=none \"$framework\"\n  done\nfi\nxattr -cr \"$APP_BUNDLE\"\ncodesign --force --sign \"$SIGNING_IDENTITY\" --preserve-metadata=identifier,requirements,flags,runtime,entitlements --timestamp=none \"$APP_BUNDLE\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -2688,7 +2688,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 1.1.6;
+				CURRENT_PROJECT_VERSION = 1.1.7;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -2712,7 +2712,7 @@
 					"\"$(SRCROOT)/Resources/Binaries\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = 1.1.6;
+				MARKETING_VERSION = 1.1.7;
 				PRODUCT_BUNDLE_IDENTIFIER = net.chkwon.TeXForge;
 				PRODUCT_NAME = TeXForge;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2735,7 +2735,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 1.1.6;
+				CURRENT_PROJECT_VERSION = 1.1.7;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -2757,7 +2757,7 @@
 					"\"$(SRCROOT)/Resources/Binaries\"",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = 1.1.6;
+				MARKETING_VERSION = 1.1.7;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = net.chkwon.TeXForge;
 				PRODUCT_NAME = TeXForge;
