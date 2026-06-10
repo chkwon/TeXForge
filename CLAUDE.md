@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## GitHub repo targeting — NEVER touch upstream
+
+This repo is a fork. The ONLY repository that may ever be modified on GitHub is **`chkwon/TeXForge`**. The `upstream` remote (`TeXShop/TeXShop`) is **fetch-only**, used solely to sync from the original TeXShop.
+
+- **NEVER** open PRs, issues, releases, or push anything to `TeXShop/TeXShop`. (It once happened by accident because `gh` resolves the fork's parent as the default base repo.)
+- Always pass `--repo chkwon/TeXForge` explicitly to `gh pr create` (and prefer it on other mutating `gh` commands).
+- Enforcement layers already in place: `gh repo set-default chkwon/TeXForge` (in `.git/config`), upstream's push URL is disabled, and a PreToolUse hook (`.claude/hooks/protect-upstream.py`, wired in `.claude/settings.json`) hard-blocks violating commands.
+
 ## Project Overview
 
 TeXForge is a personal fork of [TeXShop](https://pages.uoregon.edu/koch/texshop/texshop.html) — a macOS LaTeX/TeX editor with integrated PDF preview, written in Objective-C. It is a document-based Cocoa application (NSDocument architecture). Licensed under GNU GPL v2.

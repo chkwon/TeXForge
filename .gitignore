@@ -4,3 +4,10 @@
 /TeXForge.xcodeproj/project.xcworkspace/xcuserdata/
 /TeXForge.xcodeproj/xcuserdata/
 /build/
+
+# Track the shared Claude Code guard config (overrides the global .claude ignore),
+# but keep local-only state (settings.local.json, worktrees/) ignored.
+!.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
