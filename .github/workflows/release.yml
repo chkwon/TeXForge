@@ -123,6 +123,65 @@ jobs:
               --generate-notes
           fi
 
+      - name: Check out Homebrew tap
+        uses: actions/checkout@v5
+        with:
+          repository: chkwon/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Homebrew cask
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          ASSET="build/Release/${{ steps.package.outputs.asset }}"
+          SHA256="$(shasum -a 256 "$ASSET" | awk '{print $1}')"
+          CASK_PATH="homebrew-tap/Casks/texforge.rb"
+
+          mkdir -p "$(dirname "$CASK_PATH")"
+          cat > "$CASK_PATH" <<EOF
+          cask "texforge" do
+            version "${VERSION}"
+            sha256 "${SHA256}"
+
+            url "https://github.com/chkwon/TeXForge/releases/download/v#{version}/TeXForge-v#{version}-arm64.zip"
+            name "TeXForge"
+            desc "LaTeX editor with AI inline completion, a fork of TeXShop"
+            homepage "https://github.com/chkwon/TeXForge"
+
+            livecheck do
+              url "https://github.com/chkwon/TeXForge/releases/latest"
+              strategy :github_latest
+            end
+
+            depends_on arch: :arm64
+            depends_on :macos
+
+            app "TeXForge.app"
+
+            zap trash: [
+              "~/Library/Caches/net.chkwon.TeXForge",
+              "~/Library/Preferences/net.chkwon.TeXForge.plist",
+              "~/Library/Saved Application State/net.chkwon.TeXForge.savedState",
+              "~/Library/TeXForge",
+            ]
+          end
+          EOF
+
+          git -C homebrew-tap config user.name "github-actions[bot]"
+          git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git -C homebrew-tap diff --quiet -- Casks/texforge.rb; then
+            echo "Homebrew cask is already up to date."
+            exit 0
+          fi
+
+          git -C homebrew-tap add Casks/texforge.rb
+          git -C homebrew-tap commit -m "Update TeXForge to v${VERSION}"
+          git -C homebrew-tap push
+
       - name: Clean up signing material
         if: always()
         run: |
