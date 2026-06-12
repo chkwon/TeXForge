@@ -59,6 +59,16 @@ Everything else -- typesetting engines, PDF viewer, SyncTeX, macro system, multi
 
 Pre-built releases are on the [Releases page](https://github.com/chkwon/TeXForge/releases/latest). Apple Silicon (M-series) only.
 
+### Homebrew (recommended)
+
+```sh
+brew install --cask chkwon/tap/texforge
+```
+
+Upgrade later with `brew upgrade --cask texforge`. The cask is updated automatically by the release workflow.
+
+### Manual download
+
 1. Download `TeXForge-vX.Y.Z-arm64.zip` from the latest release.
 2. Unzip in Finder.
 3. Drag `TeXForge.app` to `/Applications`.
