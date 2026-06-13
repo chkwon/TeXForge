@@ -43,13 +43,16 @@ def main():
                   "writable repo is chkwon/TeXForge. (Single read-only gh commands - "
                   "view/list/status/diff/checks - are exempt.)")
 
-    # 3) gh pr create must explicitly target the fork, so a default-repo
-    #    misresolution can never route a PR to the upstream parent again.
+    # 3) gh pr create must carry an explicit --repo/-R, so a default-repo
+    #    misresolution can never route a PR to the fork's upstream parent.
+    #    Any explicit target is allowed (TeXForge, PDFLaser, homebrew-tap, ...);
+    #    rule 2 above still blocks an explicit TeXShop/TeXShop target.
     if re.search(r'(?:^|[;&|(\s])gh\s+pr\s+create\b', cmd):
-        if not re.search(r'(?:--repo|-R)[=\s]+[\'"]?chkwon/TeXForge[\'"]?(\s|$)', cmd):
+        if not re.search(r'(?:--repo|-R)[=\s]', cmd):
             block("BLOCKED by .claude/hooks/protect-upstream.py: 'gh pr create' must "
-                  "explicitly pass --repo chkwon/TeXForge (PRs must never go to the "
-                  "upstream TeXShop/TeXShop repo).")
+                  "pass an explicit --repo (e.g. --repo chkwon/TeXForge). Without it, "
+                  "gh resolves a fork's upstream parent as the base repo, which once "
+                  "routed a PR to TeXShop/TeXShop by accident.")
 
 
 if __name__ == "__main__":
